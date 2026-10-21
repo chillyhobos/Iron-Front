@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Iron Front</title>
+  </head>
+  <body>
+    <!-- Setup screen -->
+    <div id="setup" class="screen">
+      <div class="panel setup-panel">
+        <h1>IRON FRONT</h1>
+        <p class="subtitle">Turn-based tactics for 2–4 commanders</p>
+
+        <div id="continue-box" class="continue-box hidden">
+          <div>
+            <b>Continue</b>
+            <div id="continue-info" class="meta"></div>
+          </div>
+          <button id="continue-btn" class="primary">Continue</button>
+        </div>
+        <div class="row">
+          <span class="meta">Have a save file?</span>
+          <button id="load-file-btn" type="button">Load save file…</button>
+        </div>
+        <div class="row">
+          <span class="meta">Make your own battlefields</span>
+          <button id="editor-btn" type="button">Map editor</button>
+        </div>
+        <div class="row">
+          <span class="meta">Change unit stats and damage</span>
+          <button id="unit-editor-btn" type="button">Unit editor</button>
+        </div>
+        <div id="setup-error" class="error hidden"></div>
+        <hr class="divider" />
+        <h3 class="section-title">New game</h3>
+
+        <label class="row">Mode
+          <select id="mode-select"></select>
+        </label>
+        <label class="row">Map
+          <select id="map-select"></select>
+        </label>
+        <label class="row">Units
+          <select id="unitset-select"></select>
+        </label>
+        <p id="mode-help" class="meta hidden" style="margin:0"></p>
+        <label class="row" id="count-row">Players
+          <select id="player-count">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4" selected>4</option>
+          </select>
+        </label>
+        <div class="row presets" id="presets-row">
+          Quick teams:
+          <button type="button" data-preset="ffa">Free-for-all</button>
+          <button type="button" data-preset="2v2">2 vs 2</button>
+        </div>
+        <div id="player-rows"></div>
+        <details class="commander-guide">
+          <summary>Commander guide</summary>
+          <div id="commander-guide"></div>
+        </details>
+        <label class="row option-row" for="fog-toggle">
+          <span>
+            <b>Fog of war</b>
+            <span class="meta">You only see what your units and buildings can see. Enemies hide in forests and can ambush you.</span>
+          </span>
+          <input id="fog-toggle" type="checkbox" />
+        </label>
+        <button id="start-btn" class="primary">Deploy!</button>
+
+        <hr class="divider" />
+        <h3 class="section-title">Online (2–6 players)</h3>
+        <div id="online-rejoin" class="continue-box hidden">
+          <div>
+            <b>Online game in progress</b>
+            <div id="online-rejoin-info" class="meta"></div>
+          </div>
+          <button id="online-rejoin-btn" class="primary">Rejoin</button>
+        </div>
+        <div class="online-you">
+          <input id="online-name" maxlength="24" placeholder="Your name" />
+          <select id="online-commander" title="Your commander"></select>
+        </div>
+        <div class="row">
+          <span class="meta">Uses the map, player count, teams, fog and units chosen above. Rows set to CPU become CPU players. For 5–6 players, set Mode to 3 vs 3.</span>
+          <button id="host-btn" type="button">Host online game</button>
+        </div>
+        <div class="row">
+          <input id="join-code" maxlength="4" placeholder="Code" autocomplete="off" />
+          <button id="join-btn" type="button">Join with code</button>
+        </div>
+        <div id="online-status" class="info-box hidden"></div>
+      </div>
+    </div>
+
+    <!-- Game screen -->
+    <div id="game" class="screen hidden">
+      <div id="board"></div>
+      <aside id="hud" class="panel">
+        <div id="turn-info"></div>
+        <div id="online-tag" class="online-tag hidden"></div>
+        <div id="standins" class="standins hidden">
+          <div class="meta">Away players. Until they return, their army is played by:</div>
+          <div id="standin-list"></div>
+        </div>
+        <button id="end-turn" class="primary">End Turn</button>
+        <button id="power-btn" class="power-btn hidden" type="button"></button>
+        <div class="button-row">
+          <button id="undo-btn" title="Undo your last action this turn (Ctrl+Z)">↶ Undo</button>
+          <button id="save-btn" title="Download a save file you can load later or share">Save</button>
+          <button id="menu-btn" title="Back to the main menu (your game is autosaved)">Menu</button>
+        </div>
+        <h3>Commanders</h3>
+        <div id="player-list"></div>
+        <h3>Info</h3>
+        <div id="tile-info" class="info-box">Hover a tile.</div>
+        <h3>Log</h3>
+        <div id="log"></div>
+        <p class="help">Click a unit to move. Click your factory to build. Right-click / Esc to cancel.</p>
+      </aside>
+    </div>
+
+    <!-- Map editor -->
+    <div id="editor" class="screen hidden">
+      <div id="editor-board"></div>
+      <aside id="editor-panel" class="panel">
+        <div class="row">
+          <input id="ed-name" maxlength="32" placeholder="Map name" style="flex:1;min-width:0" />
+        </div>
+        <label class="row"><span class="meta">Map type</span>
+          <select id="ed-mode"></select>
+        </label>
+        <div class="row ed-size">
+          <span class="meta">Size</span>
+          <input id="ed-w" type="number" min="8" max="30" /> ×
+          <input id="ed-h" type="number" min="8" max="30" />
+          <button id="ed-resize" type="button">Resize</button>
+        </div>
+        <label class="row"><span class="meta">Mirror painting</span>
+          <select id="ed-sym">
+            <option value="none">Off</option>
+            <option value="mirror-x">Left ↔ Right</option>
+            <option value="mirror-y">Top ↔ Bottom</option>
+            <option value="quad">4 corners</option>
+            <option value="rotate">Rotate 180°</option>
+          </select>
+        </label>
+
+        <h3>Terrain <label class="fill-toggle"><input id="ed-fill" type="checkbox" /> Fill area</label></h3>
+        <div id="ed-terrain" class="palette"></div>
+        <h3>Buildings</h3>
+        <div id="ed-buildings" class="palette"></div>
+        <h3>Units</h3>
+        <div id="ed-units" class="palette"></div>
+        <h3>Owner (buildings &amp; units)</h3>
+        <div id="ed-owner" class="palette owners"></div>
+
+        <h3>Check</h3>
+        <div id="ed-check" class="info-box"></div>
+        <div id="ed-status" class="meta"></div>
+
+        <div class="button-grid">
+          <button id="ed-undo" type="button" title="Ctrl+Z">↶ Undo</button>
+          <button id="ed-new" type="button">New</button>
+          <select id="ed-open"><option value="">Open map…</option></select>
+          <button id="ed-import" type="button">Import file…</button>
+          <button id="ed-export" type="button">Export file</button>
+          <button id="ed-delete" type="button">Delete</button>
+          <button id="ed-save" type="button">Save</button>
+          <button id="ed-play" class="primary" type="button">Save &amp; play</button>
+        </div>
+        <button id="ed-back" type="button">← Main menu</button>
+        <p class="help">Left-click / drag to paint. Right-click / drag to erase (removes a unit, or paints plains).</p>
+      </aside>
+    </div>
+
+    <!-- Unit editor -->
+    <div id="unit-editor" class="screen hidden">
+      <aside class="panel ue-side">
+        <input id="ue-name" maxlength="32" placeholder="Unit set name" />
+        <div class="button-grid">
+          <select id="ue-open"><option value="">Open set…</option></select>
+          <button id="ue-new" type="button">New from Standard</button>
+          <button id="ue-import" type="button">Import file…</button>
+          <button id="ue-export" type="button">Export file</button>
+          <button id="ue-delete" type="button">Delete</button>
+          <button id="ue-save" class="primary" type="button">Save</button>
+        </div>
+        <div id="ue-status" class="meta"></div>
+        <h3>Units</h3>
+        <div id="ue-list" class="ue-list"></div>
+        <button id="ue-back" type="button">← Main menu</button>
+        <p class="help">Changed values are outlined in gold. Pick this set under <b>Units</b> on the setup screen to play with it.</p>
+      </aside>
+      <main class="panel ue-main">
+        <div class="ue-head">
+          <h2 id="ue-title"></h2>
+          <button id="ue-reset-unit" type="button">Reset unit to Standard</button>
+        </div>
+        <div id="ue-errors" class="error hidden"></div>
+        <div id="ue-fields"></div>
+        <h3>Damage it deals <span class="meta">(% of a full-health target, from full health; 0 = can't attack it)</span></h3>
+        <div id="ue-attack" class="ue-grid ue-dmg"></div>
+        <h3>Damage it takes <span class="meta">(from each full-health attacker)</span></h3>
+        <div id="ue-defend" class="ue-grid ue-dmg"></div>
+      </main>
+    </div>
+
+    <div id="banner" class="hidden"></div>
+    <div id="action-menu" class="menu hidden"></div>
+    <div id="build-menu" class="modal hidden"></div>
+    <div id="overlay" class="overlay hidden"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "_help": "defense = stars (each cuts damage by 8%; aircraft ignore stars). cost = move points to enter; 99 = impassable. char = letter used in maps.json. supplies = which unit families repair and refuel/rearm here (ground, air, naval). builds = which family this building produces. durability = hits a bridge takes before it collapses back into river (see bridgeDamage in units.json).",
+  "plain":    { "name": "Plains",   "char": ".", "defense": 1, "property": false, "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 2,  "air": 1, "ship": 99 } },
+  "forest":   { "name": "Forest",   "char": "f", "defense": 2, "property": false, "cost": { "foot": 1,  "boot": 1,  "treads": 2,  "tires": 3,  "air": 1, "ship": 99 } },
+  "mountain": { "name": "Mountain", "char": "m", "defense": 4, "property": false, "cost": { "foot": 2,  "boot": 1,  "treads": 99, "tires": 99, "air": 1, "ship": 99 } },
+  "road":     { "name": "Road",     "char": "-", "defense": 0, "property": false, "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } },
+  "sea":      { "name": "Sea",      "char": "~", "defense": 0, "property": false, "cost": { "foot": 99, "boot": 99, "treads": 99, "tires": 99, "air": 1, "ship": 1 } },
+  "river":    { "name": "River",    "char": "r", "defense": 0, "property": false, "cost": { "foot": 2,  "boot": 2,  "treads": 99, "tires": 99, "air": 1, "ship": 99 } },
+  "bridge":   { "name": "Bridge",   "char": "=", "defense": 0, "property": false, "durability": 2, "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } },
+  "city":     { "name": "City",     "char": "c", "defense": 3, "property": true,  "supplies": ["ground"], "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } },
+  "factory":  { "name": "Factory",  "char": "b", "defense": 3, "property": true,  "supplies": ["ground"], "builds": "ground", "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } },
+  "hq":       { "name": "HQ",       "char": "h", "defense": 4, "property": true,  "supplies": ["ground"], "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } },
+  "port":     { "name": "Port",     "char": "p", "defense": 3, "property": true,  "supplies": ["naval"],  "builds": "naval",  "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 1 } },
+  "airfield": { "name": "Airfield", "char": "a", "defense": 3, "property": true,  "supplies": ["air"],    "builds": "air",    "cost": { "foot": 1,  "boot": 1,  "treads": 1,  "tires": 1,  "air": 1, "ship": 99 } }
+}

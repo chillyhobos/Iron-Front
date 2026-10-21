@@ -1,0 +1,22 @@
+# Installed packages (npm install recreates them)
+node_modules/
+
+# Build output (npm run build recreates it; the host builds its own)
+dist/
+dist-server/
+
+# Local tool settings (Claude's dev-server preview config)
+.claude/
+
+# Secrets, if you ever add any
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Windows / OneDrive / macOS clutter
+Thumbs.db
+desktop.ini
+.DS_Store

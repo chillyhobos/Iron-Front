@@ -1,0 +1,97 @@
+{
+  "_help": "Bonuses are percentages (attack/defense/cost) or flat amounts (move/range/vision), keyed by unit group: all, infantry (Rifleman, Bazooka, Sniper), vehicle (ground vehicles), air (aircraft), naval (ships), tank (Light/Heavy Tank), direct, indirect (Artillery, Rocket), or a unit id like scout. 'charge' is how much the power meter needs (damage dealt counts half, damage taken counts full, measured in unit value). 'heal' is HP restored to every unit when the power fires (10 = 1 HP).",
+  "kade": {
+    "name": "Marshal Kade",
+    "style": "Balanced",
+    "passive": { "description": "No strengths, no weaknesses." },
+    "power": {
+      "name": "Rally",
+      "description": "All units +15% attack and defense, and heal 1 HP.",
+      "charge": 18000,
+      "heal": 10,
+      "attack": { "all": 15 },
+      "defense": { "all": 15 }
+    }
+  },
+  "vex": {
+    "name": "Colonel Vex",
+    "style": "Armor",
+    "passive": {
+      "description": "Tanks +10% attack. Infantry −10% attack.",
+      "attack": { "tank": 10, "infantry": -10 }
+    },
+    "power": {
+      "name": "Blitz",
+      "description": "Vehicles +2 movement.",
+      "charge": 18000,
+      "move": { "vehicle": 2 }
+    }
+  },
+  "thorn": {
+    "name": "Major Thorn",
+    "style": "Artillery",
+    "passive": {
+      "description": "Artillery and rockets +25% attack and +1 vision. Direct-fire units −5% attack.",
+      "attack": { "indirect": 25, "direct": -5 },
+      "vision": { "indirect": 1 }
+    },
+    "power": {
+      "name": "Barrage",
+      "description": "Artillery and rockets +1 range and another +25% attack.",
+      "charge": 16000,
+      "range": { "indirect": 1 },
+      "attack": { "indirect": 25 }
+    }
+  },
+  "juno": {
+    "name": "Captain Juno",
+    "style": "Infantry",
+    "passive": {
+      "description": "Infantry (Riflemen, Bazookas, Snipers) cost 15% less. Riflemen and Bazookas capture 20% faster.",
+      "cost": { "infantry": -15 },
+      "capture": 20
+    },
+    "power": {
+      "name": "Mobilize",
+      "description": "Infantry +2 movement and +10% attack.",
+      "charge": 14000,
+      "move": { "infantry": 2 },
+      "attack": { "infantry": 10 }
+    }
+  },
+  "hask": {
+    "name": "General Hask",
+    "style": "Defense",
+    "passive": {
+      "description": "All units +10% defense, but −10% attack.",
+      "defense": { "all": 10 },
+      "attack": { "all": -10 }
+    },
+    "power": {
+      "name": "Fortify",
+      "description": "All units +30% defense and heal 1 HP.",
+      "charge": 20000,
+      "heal": 10,
+      "defense": { "all": 30 }
+    }
+  },
+  "wren": {
+    "name": "Agent Wren",
+    "style": "Recon (best with fog)",
+    "passive": {
+      "description": "All units +1 vision and can see into forests. Scout Cars +1 movement and +20% attack.",
+      "vision": { "all": 1 },
+      "seeForests": true,
+      "move": { "scout": 1 },
+      "attack": { "scout": 20 }
+    },
+    "power": {
+      "name": "Blackout",
+      "description": "All units +10% attack and +1 movement. With fog of war on, reveals the whole map.",
+      "charge": 16000,
+      "attack": { "all": 10 },
+      "move": { "all": 1 },
+      "revealAll": true
+    }
+  }
+}

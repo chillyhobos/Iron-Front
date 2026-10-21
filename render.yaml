@@ -1,0 +1,12 @@
+# Render Blueprint: one free web service that builds the game and runs the game server.
+# In Render: New → Blueprint → pick this repository. See "Hosting on Render" in README.md.
+services:
+  - type: web
+    name: iron-front
+    runtime: node
+    plan: free
+    # --include=dev: the build needs TypeScript, Vite and esbuild even if NODE_ENV is production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
