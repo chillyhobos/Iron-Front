@@ -4,6 +4,8 @@
 // matching sound (so far for some of them).
 
 export type Cue =
+  /** A capturing unit leaves the ground on each of its hops. */
+  | 'capture-jump'
   /** A capturing unit lands each of its hops. */
   | 'capture-hop'
   /** A building changed hands. */

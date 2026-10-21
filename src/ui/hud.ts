@@ -70,19 +70,26 @@ export class Hud {
     el.classList.toggle('offline', !ok);
   }
 
-  /** The mute button and volume slider, kept in step with the sound engine (and its M key). */
-  bindSound(engine: { volume: number; muted: boolean; setVolume(v: number): void; setMuted(m: boolean): void; onChange(l: () => void): () => void }) {
+  /** The mute button and volume sliders, kept in step with the sound engine (and its M key). */
+  bindSound(engine: {
+    volume: number; musicVolume: number; muted: boolean;
+    setVolume(v: number): void; setMusicVolume(v: number): void; setMuted(m: boolean): void; onChange(l: () => void): () => void;
+  }) {
     const btn = $('mute-btn') as HTMLButtonElement;
     const slider = $('volume') as HTMLInputElement;
+    const music = $('music-volume') as HTMLInputElement;
     const show = () => {
       const silent = engine.muted || engine.volume === 0;
       btn.textContent = silent ? '🔇' : engine.volume < 0.5 ? '🔉' : '🔊';
       btn.classList.toggle('muted', silent);
       slider.value = String(Math.round(engine.volume * 100));
       slider.classList.toggle('muted', engine.muted);
+      music.value = String(Math.round(engine.musicVolume * 100));
+      music.classList.toggle('muted', engine.muted || engine.volume === 0);
     };
     btn.onclick = () => engine.setMuted(!engine.muted);
     slider.oninput = () => engine.setVolume(Number(slider.value) / 100);
+    music.oninput = () => engine.setMusicVolume(Number(music.value) / 100);
     engine.onChange(show);
     show();
   }

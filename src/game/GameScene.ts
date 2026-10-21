@@ -630,7 +630,8 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * The capture hop: the unit jumps twice on its building, in ANIM_CAPTURE_MS, the same
-   * everywhere (the server paces CPU moves by it). Each landing is a cue for sound.
+   * everywhere (the server paces CPU moves by it). Each takeoff and landing is a cue for
+   * sound ('capture-jump' and 'capture-hop'); the second hop takes off as the first lands.
    */
   private captureHop(unitId: number, done: () => void) {
     const sprite = this.sprites.get(unitId);
@@ -654,7 +655,8 @@ export class GameScene extends Phaser.Scene {
       ease: 'Quad.Out',
       yoyo: true,
       repeat: 1,
-      onRepeat: () => cue('capture-hop'),
+      onStart: () => cue('capture-jump'),
+      onRepeat: () => { cue('capture-hop'); cue('capture-jump'); },
       onComplete: () => {
         cue('capture-hop');
         finish();

@@ -210,7 +210,7 @@ export function bridgeRepair(rate: number, seed: number): Float32Array {
 // plus the sound of the surface; short, so a fast run stays clear.
 
 /** A clip of `seconds`, filled sample by sample by `voice(t, noise)`, then soft-clipped and finished. */
-function render(rate: number, seed: number, seconds: number, voice: (t: number, noise: number, rand: () => number) => number): Float32Array {
+export function render(rate: number, seed: number, seconds: number, voice: (t: number, noise: number, rand: () => number) => number): Float32Array {
   const rand = seeded(seed);
   const out = new Float32Array(Math.floor(rate * seconds));
   for (let i = 0; i < out.length; i++) out[i] = Math.tanh(voice(i / rate, rand() * 2 - 1, rand) * 1.3);
@@ -218,7 +218,7 @@ function render(rate: number, seed: number, seconds: number, voice: (t: number, 
 }
 
 /** A band of noise between two frequencies (two one-pole filters), kept per clip. */
-function band(lowHz: number, highHz: number, rate: number) {
+export function band(lowHz: number, highHz: number, rate: number) {
   const aLow = lowpass(lowHz, rate), aHigh = lowpass(highHz, rate);
   let under = 0, inBand = 0;
   return (noise: number) => {
@@ -304,6 +304,44 @@ export function stepWater(rate: number, seed: number) {
     const bubble = db >= 0 && db < 0.04 ? Math.sin(phase) * Math.sin((Math.PI * db) / 0.04) * 0.35 : 0;
     return (slap + spray) * Math.min(1, t / 0.002) + bubble;
   });
+}
+
+// ---------------------------------------------------------------- capture hops
+// Infantry hop twice on a building they're capturing. Playful, not heavy: a springy
+// rising "bwip" as they leave the ground and a soft, bouncy "bup" as they land, each
+// on its own cue so both stay in step with the animation. Pure tones with gentle
+// attacks (no noise bursts), so nothing thumps or clicks.
+
+/** A soft tone gliding from `fromHz` to `toHz`, with a gentle rise and a springy wobble. */
+function bounce(rate: number, seconds: number, opts: { fromHz: number; toHz: number; glide: number; attack: number; decay: number; wobble: number }) {
+  const out = new Float32Array(Math.floor(rate * seconds));
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / rate;
+    const glide = Math.min(1, t / opts.glide);
+    const eased = 1 - (1 - glide) * (1 - glide); // fast at first, settling at the end
+    // The wobble: a quick pitch flutter that dies away, like a spring settling.
+    const hz = (opts.fromHz + (opts.toHz - opts.fromHz) * eased) * (1 + opts.wobble * Math.sin(2 * Math.PI * 22 * t) * Math.exp(-t * 30));
+    phase += (2 * Math.PI * hz) / rate;
+    const env = Math.sin((Math.PI / 2) * Math.min(1, t / opts.attack)) ** 2 * Math.exp(-t * opts.decay);
+    // A little second and third harmonic make it round and toy-like rather than a test tone.
+    out[i] = (Math.sin(phase) + Math.sin(2 * phase) * 0.18 + Math.sin(3 * phase) * 0.05) * env;
+  }
+  return finish(out, rate);
+}
+
+/** Leaving the ground: a quick, springy rising "bwip". */
+export function hopUp(rate: number, seed: number) {
+  const r = seeded(seed + 31);
+  const base = 300 + r() * 40;
+  return bounce(rate, 0.11, { fromHz: base, toHz: base * 2.2, glide: 0.07, attack: 0.008, decay: 28, wobble: 0 });
+}
+
+/** Landing: a soft, round "bup" that drops in pitch and wobbles a little, like a bounce. */
+export function hopLand(rate: number, seed: number) {
+  const r = seeded(seed + 17);
+  const base = 470 + r() * 50;
+  return bounce(rate, 0.14, { fromHz: base, toHz: base * 0.55, glide: 0.06, attack: 0.006, decay: 30, wobble: 0.06 });
 }
 
 // ---------------------------------------------------------------- vehicles
@@ -420,6 +458,8 @@ export const RECIPES = {
   'step-hard': { make: stepHard, variants: 4 },
   'step-bridge': { make: stepBridge, variants: 4 },
   'step-water': { make: stepWater, variants: 4 },
+  'hop-up': { make: hopUp, variants: 4 },
+  'hop-land': { make: hopLand, variants: 4 },
   'drive-treads': { make: driveTreads, variants: 2 },
   'drive-tires': { make: driveTires, variants: 2 },
   'fly-jet': { make: flyJet, variants: 2 },
