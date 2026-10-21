@@ -447,6 +447,169 @@ export function sail(rate: number, seed: number) {
   });
 }
 
+// ---------------------------------------------------------------- weapons, hits, explosions
+// The rest of the battle: a sound per weapon style (units sharing a style play it at
+// their own pitch), a hit as each shot lands, an explosion when a unit is destroyed,
+// and a jingle when a building is captured. Punchy but rounded: every one ends with
+// a gentle high cut, so nothing is harsh or fizzy.
+
+/** A sine whose pitch can change every sample (for booms and whistles that glide). */
+function glider(rate: number) {
+  let phase = 0;
+  return (hz: number) => Math.sin((phase += (2 * Math.PI * hz) / rate));
+}
+
+/** A pitch gliding from `from` to `to` Hz, `speed` per second (exponential, like a drum). */
+const drop = (t: number, from: number, to: number, speed: number) => to + (from - to) * Math.exp(-t * speed);
+
+/** Rise in `attack` seconds (no click), then die away at `decay` per second. */
+const env = (t: number, attack: number, decay: number) => Math.min(1, t / attack) * Math.exp(-t * decay);
+
+/**
+ * A clip filled by `voice` like render(), plus optional echoes (delayed, darker copies:
+ * distance) and a two-pole high cut at `cutHz` that keeps it round. Ends with finish().
+ */
+function shape(rate: number, seed: number, seconds: number, cutHz: number, voice: (t: number, noise: number) => number,
+  echoes: [delay: number, gain: number][] = []): Float32Array {
+  const rand = seeded(seed);
+  const n = Math.floor(rate * seconds);
+  const dry = new Float32Array(n);
+  for (let i = 0; i < n; i++) dry[i] = Math.tanh(voice(i / rate, rand() * 2 - 1) * 1.3);
+  const out = dry.slice();
+  for (const [delay, gain] of echoes) {
+    const d = Math.floor(rate * delay), a = lowpass(cutHz * 0.4, rate);
+    let lp = 0;
+    for (let i = d; i < n; i++) out[i] += (lp += a * (dry[i - d] - lp)) * gain;
+  }
+  const a = lowpass(cutHz, rate);
+  let p1 = 0, p2 = 0;
+  for (let i = 0; i < n; i++) out[i] = p2 += a * ((p1 += a * (out[i] - p1)) - p2);
+  return finish(out, rate);
+}
+
+/** Sniper: one full, sharp crack that echoes away across the battlefield. */
+export function sniperShot(rate: number, seed: number) {
+  const crack = band(1500, 6000, rate), body = band(100, 900, rate), pop = glider(rate);
+  return shape(rate, seed, 0.55, 6500, (t, n) =>
+    crack(n) * env(t, 0.0006, 120) * 2.2 + body(n) * env(t, 0.001, 30) * 1.8
+    + pop(drop(t, 220, 70, 30)) * env(t, 0.001, 25) * 0.6,
+  [[0.09, 0.4], [0.2, 0.2], [0.33, 0.1]]);
+}
+
+/** Bazooka: an ignition pop and the "fwoomp" of the rocket leaving the tube. */
+export function bazookaShot(rate: number, seed: number) {
+  const pop = band(80, 600, rate), whoosh = band(400, 2400, rate), hiss = band(2000, 5000, rate);
+  return shape(rate, seed, 0.4, 3000, (t, n) => {
+    const swell = Math.min(1, t / 0.04) * Math.exp(-Math.max(0, t - 0.04) * 9);
+    return pop(n) * env(t, 0.001, 40) * 2.4 + whoosh(n) * swell * 1.5 + hiss(n) * swell * 0.15;
+  });
+}
+
+/** Tank cannon: a punchy boom with a short crack and a rolling tail (pitched per tank). */
+export function cannonShot(rate: number, seed: number) {
+  const blast = band(60, 1200, rate), crack = band(1500, 5000, rate), rumble = band(30, 200, rate), pop = glider(rate);
+  return shape(rate, seed, 0.65, 5000, (t, n) =>
+    pop(drop(t, 140, 45, 14)) * env(t, 0.001, 14) + blast(n) * env(t, 0.001, 18) * 2.5
+    + crack(n) * env(t, 0.0006, 90) + rumble(n) * env(t, 0.01, 5) * 1.4,
+  [[0.12, 0.25]]);
+}
+
+/** Rapid guns (scout car, flak, interceptor, cruiser): one quick, solid "dut" per round. */
+export function gunBurst(rate: number, seed: number) {
+  const bark = band(400, 2500, rate), tick = band(2500, 6000, rate), pop = glider(rate);
+  return shape(rate, seed, 0.09, 7000, (t, n) =>
+    pop(drop(t, 220, 90, 60)) * env(t, 0.0008, 60) * 0.6 + bark(n) * env(t, 0.0008, 70) * 2 + tick(n) * env(t, 0.0005, 200) * 0.8);
+}
+
+/** Artillery and battleship guns: a deep "thoom", then the shell whistling down. */
+export function shellShot(rate: number, seed: number) {
+  const blast = band(50, 900, rate), rumble = band(30, 180, rate), pop = glider(rate), whistle = glider(rate);
+  return shape(rate, seed, 0.5, 5000, (t, n) => {
+    const w = t > 0.12 && t < 0.42 ? Math.sin((Math.PI * (t - 0.12)) / 0.3) : 0;
+    return pop(drop(t, 110, 40, 10)) * env(t, 0.001, 10) + blast(n) * env(t, 0.001, 12) * 2.6
+      + rumble(n) * env(t, 0.01, 6) * 1.2 + whistle(2200 - 1300 * Math.min(1, Math.max(0, t - 0.12) / 0.3)) * w * w * 0.16;
+  });
+}
+
+/** Rocket launcher: an ignition pop and a hissing "fssshh" as each rocket streaks off. */
+export function rocketShot(rate: number, seed: number) {
+  const pop = band(100, 700, rate), whoosh = band(500, 2600, rate), hiss = band(2500, 6000, rate);
+  return shape(rate, seed, 0.45, 3000, (t, n) =>
+    pop(n) * env(t, 0.001, 50) * 1.8 + whoosh(n) * env(t, 0.02, 6) * 1.4 + hiss(n) * env(t, 0.03, 7) * 0.06);
+}
+
+/** Missile launcher: a heavier launch roar with a low thump underneath. */
+export function missileShot(rate: number, seed: number) {
+  const roar = band(150, 1500, rate), hiss = band(2000, 6000, rate), pop = glider(rate);
+  return shape(rate, seed, 0.7, 6000, (t, n) =>
+    roar(n) * env(t, 0.04, 3.5) * 1.6 + hiss(n) * env(t, 0.05, 4) * 0.35 + pop(drop(t, 90, 50, 20)) * env(t, 0.002, 20) * 0.8);
+}
+
+/** Gunship rocket pods: a quick "fwip". */
+export function airMissileShot(rate: number, seed: number) {
+  const fwip = band(700, 3200, rate), pop = glider(rate);
+  return shape(rate, seed, 0.25, 4000, (t, n) => fwip(n) * env(t, 0.006, 18) * 1.5 + pop(drop(t, 300, 120, 50)) * env(t, 0.001, 50) * 0.5);
+}
+
+/** Bomber: the clunk of the bomb rack, then a falling whistle. */
+export function bombDrop(rate: number, seed: number) {
+  const clunk = band(300, 1500, rate), whistle = glider(rate);
+  return shape(rate, seed, 0.32, 6000, (t, n) => {
+    const w = t > 0.03 ? Math.sin((Math.PI * (t - 0.03)) / 0.29) : 0;
+    return (clunk(n) * 1.2 + Math.sin(2 * Math.PI * 180 * t) * 0.6) * env(t, 0.001, 60)
+      + whistle(1800 - 1100 * Math.max(0, t - 0.03) / 0.29) * w * 0.3;
+  });
+}
+
+/** A bullet landing: a soft, dusty "pff-tk". */
+export function impactLight(rate: number, seed: number) {
+  const dust = band(150, 1200, rate), tick = band(1500, 4000, rate);
+  return shape(rate, seed, 0.12, 4500, (t, n) => dust(n) * env(t, 0.001, 45) * 2 + tick(n) * env(t, 0.0008, 120) * 0.4);
+}
+
+/** A shell, rocket or bomb landing: a rounded boom with a little debris. */
+export function impactHeavy(rate: number, seed: number) {
+  const blast = band(40, 700, rate), debris = band(1500, 5000, rate), boom = glider(rate);
+  const r = seeded(seed + 61);
+  const bits = Array.from({ length: 12 }, () => 0.03 + r() * 0.35);
+  return shape(rate, seed, 0.6, 4000, (t, n) => {
+    let crackle = 0;
+    for (const at of bits) { const d = t - at; if (d >= 0 && d < 0.005) crackle += Math.exp(-d * 900); }
+    return boom(drop(t, 90, 40, 12)) * env(t, 0.002, 12) + blast(n) * env(t, 0.002, 9) * 3 + debris(n) * crackle * 0.5 * Math.exp(-t * 4);
+  });
+}
+
+/** A unit destroyed: a big, soft, rolling explosion (deep and rounded, never harsh). */
+export function explosion(rate: number, seed: number) {
+  const low = band(30, 600, rate), mid = band(300, 2000, rate), debris = band(1500, 5000, rate), boom = glider(rate);
+  const r = seeded(seed + 83);
+  const bits = Array.from({ length: 22 }, () => 0.05 + Math.pow(r(), 1.5) * 0.6);
+  return shape(rate, seed, 1, 3500, (t, n) => {
+    let crackle = 0;
+    for (const at of bits) { const d = t - at; if (d >= 0 && d < 0.006) crackle += Math.exp(-d * 800); }
+    return boom(drop(t, 80, 35, 7)) * env(t, 0.004, 6) * 1.2 + low(n) * env(t, 0.004, 4.5) * 3.5
+      + mid(n) * env(t, 0.003, 10) * 1.2 + debris(n) * crackle * 0.5 * Math.exp(-t * 3);
+  }, [[0.15, 0.2]]);
+}
+
+/** A building captured: a short, cheerful rising jingle (G, C, E, G), the last note ringing. */
+export function captureJingle(rate: number, seed: number) {
+  const notes = [67, 72, 76, 79].map(m => 440 * 2 ** ((m - 69) / 12));
+  const lift = 1 + (seed - 1) * 0.004; // variants a hair apart in tuning
+  return shape(rate, seed, 0.75, 8000, t => {
+    let s = 0;
+    notes.forEach((hz, k) => {
+      const d = t - k * 0.075;
+      if (d < 0) return;
+      const last = k === notes.length - 1;
+      const f = hz * lift * (last ? 1 + 0.004 * Math.sin(2 * Math.PI * 6 * d) : 1); // a little shimmer on the last note
+      const p = 2 * Math.PI * f * d;
+      s += (Math.sin(p) + Math.sin(2 * p) * 0.18 + Math.sin(3 * p) * 0.05) * env(d, 0.005, last ? 5 : 14) * 0.55;
+    });
+    return s;
+  });
+}
+
 /** Every sound the game can play: its recipe and how many variants to make of it. */
 export const RECIPES = {
   'rifle-shot': { make: rifleShot, variants: 4 },
@@ -461,6 +624,19 @@ export const RECIPES = {
   'step-water': { make: stepWater, variants: 4 },
   'hop-up': { make: hopUp, variants: 4 },
   'hop-land': { make: hopLand, variants: 4 },
+  'sniper-shot': { make: sniperShot, variants: 3 },
+  'bazooka-shot': { make: bazookaShot, variants: 3 },
+  'cannon-shot': { make: cannonShot, variants: 3 },
+  'gun-burst': { make: gunBurst, variants: 4 },
+  'shell-shot': { make: shellShot, variants: 2 },
+  'rocket-shot': { make: rocketShot, variants: 3 },
+  'missile-shot': { make: missileShot, variants: 2 },
+  'air-missile-shot': { make: airMissileShot, variants: 3 },
+  'bomb-drop': { make: bombDrop, variants: 2 },
+  'impact-light': { make: impactLight, variants: 4 },
+  'impact-heavy': { make: impactHeavy, variants: 3 },
+  'explosion': { make: explosion, variants: 3 },
+  'capture-jingle': { make: captureJingle, variants: 2 },
   'drive-treads': { make: driveTreads, variants: 2 },
   'drive-tires': { make: driveTires, variants: 2 },
   'fly-jet': { make: flyJet, variants: 2 },

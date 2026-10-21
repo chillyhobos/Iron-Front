@@ -816,7 +816,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (e.kind === 'bridge') {
       cue(`bridge-${e.change}`, this.actorType);
-      if (e.change === 'destroyed') this.explode(e.x, e.y);
+      if (e.change === 'destroyed') this.explode(e.x, e.y, 'bridge');
       const text = { built: 'Bridge built!', repaired: 'Repaired!', cracked: 'Cracked!', destroyed: 'Bridge down!' }[e.change];
       this.floatText(e.x, e.y, text, e.change === 'built' || e.change === 'repaired' ? '#ffffff' : '#ff7b7b');
     }
@@ -1121,8 +1121,9 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: t, y: t.y - 24, alpha: 0, duration: 1000, onComplete: () => t.destroy() });
   }
 
-  private explode(x: number, y: number) {
-    cue('explosion');
+  /** A blast on the map: a unit destroyed, or (`what` 'bridge') a bridge going down. */
+  private explode(x: number, y: number, what?: 'bridge') {
+    cue('explosion', what);
     const boom = this.add.circle(x * T + T / 2, y * T + T / 2, 6, 0xffa020).setDepth(9);
     this.tweens.add({ targets: boom, scale: 4, alpha: 0, duration: 450, onComplete: () => boom.destroy() });
     this.cameras.main.shake(150, 0.004);

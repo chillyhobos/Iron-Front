@@ -14,7 +14,7 @@ export type Cue =
   | 'fire'
   /** A shot lands (detail: the firing unit's type). */
   | 'impact'
-  /** A unit is destroyed. */
+  /** A unit is destroyed (detail 'bridge': the blast of a bridge going down instead). */
   | 'explosion'
   /** An infantry unit steps onto a tile (detail: its terrain, e.g. 'plain', 'bridge'). */
   | 'footstep'

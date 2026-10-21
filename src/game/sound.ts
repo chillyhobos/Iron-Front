@@ -10,6 +10,8 @@
 import { onCue, type Cue } from './cues';
 import { Music } from './music';
 import { RECIPES, seeded, SFX_LEVEL, type SoundName } from './synth';
+import { weaponOf, type WeaponStyle } from '../core/timing';
+import type { UnitType } from '../core/data';
 
 const PREFS_KEY = 'iron-front.sound';
 /** More overlapping sounds than this are dropped (keeps big battles cheap and clear). */
@@ -17,10 +19,20 @@ const MAX_VOICES = 16;
 /** The music's loudness at full music volume: soft, well under the sound effects. */
 const MUSIC_LEVEL = 0.7;
 
-/** Which sound each unit's shots make. Units not listed are silent for now. */
-const FIRE_SOUNDS: Partial<Record<string, SoundName>> = {
-  rifle: 'rifle-shot',
-  engineer: 'smg-shot',
+/** Which sound each unit's shots make, and at what pitch (lower is bigger: a Heavy Tank booms deeper). */
+const FIRE_SOUNDS: Partial<Record<string, [SoundName, number]>> = {
+  rifle: ['rifle-shot', 1], engineer: ['smg-shot', 1], sniper: ['sniper-shot', 1], bazooka: ['bazooka-shot', 1],
+  scout: ['gun-burst', 1.15], flak: ['gun-burst', 0.95], fighter: ['gun-burst', 1.08], cruiser: ['gun-burst', 0.88],
+  ltank: ['cannon-shot', 1.12], htank: ['cannon-shot', 0.85],
+  artillery: ['shell-shot', 1], battleship: ['shell-shot', 0.82],
+  rocket: ['rocket-shot', 1], missile: ['missile-shot', 1], gunship: ['air-missile-shot', 1], bomber: ['bomb-drop', 1],
+};
+
+/** Which sound a shot makes as it lands, by weapon: bullets puff, anything explosive booms. */
+const IMPACT_SOUNDS: Record<WeaponStyle, SoundName> = {
+  rifle: 'impact-light', smg: 'impact-light', sniper: 'impact-light', guns: 'impact-light',
+  bazooka: 'impact-heavy', cannon: 'impact-heavy', shell: 'impact-heavy', rockets: 'impact-heavy',
+  missiles: 'impact-heavy', airMissiles: 'impact-heavy', bombs: 'impact-heavy',
 };
 
 /** Which footstep each terrain makes (infantry only; sea can't be walked on). */
@@ -147,18 +159,25 @@ class SoundEngine {
       this.master.connect(this.ctx.destination);
       this.music = new Music(this.ctx, this.master);
       this.applyVolume();
-      // Make every clip now, once, so nothing is computed mid-battle.
-      for (const name of Object.keys(RECIPES) as SoundName[]) {
+      // Make every clip once, so nothing is computed mid-battle: one sound per task, so
+      // the game never stalls for all of them at once (they're all ready in a moment).
+      const ctx = this.ctx;
+      const queue = Object.keys(RECIPES) as SoundName[];
+      const makeNext = () => {
+        const name = queue.shift();
+        if (!name) return;
         const { make, variants } = RECIPES[name];
         const clips: AudioBuffer[] = [];
         for (let v = 0; v < variants; v++) {
-          const data = make(this.ctx.sampleRate, v + 1);
-          const buffer = this.ctx.createBuffer(1, data.length, this.ctx.sampleRate);
+          const data = make(ctx.sampleRate, v + 1);
+          const buffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
           buffer.getChannelData(0).set(data);
           clips.push(buffer);
         }
         this.clips.set(name, clips);
-      }
+        window.setTimeout(makeNext, 0);
+      };
+      makeNext();
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
   }
@@ -166,9 +185,16 @@ class SoundEngine {
   private onCue(c: Cue, detail?: string) {
     if (c === 'fire') this.music?.attack(); // fighting: the music picks up
     if (c === 'fire' && detail) {
-      const name = FIRE_SOUNDS[detail];
-      if (name) this.play(name);
+      const sound = FIRE_SOUNDS[detail];
+      if (sound) this.play(sound[0], sound[1]);
     }
+    if (c === 'impact' && detail) {
+      const style = weaponOf(detail as UnitType);
+      if (style) this.play(IMPACT_SOUNDS[style]);
+    }
+    // A unit destroyed (a bridge going down has its own sound, below).
+    if (c === 'explosion' && detail !== 'bridge') this.play('explosion');
+    if (c === 'captured') this.play('capture-jingle');
     if (c === 'footstep' && detail) {
       const name = FOOTSTEP_SOUNDS[detail];
       if (name) this.play(name);
@@ -184,7 +210,7 @@ class SoundEngine {
     }
     if (c === 'capture-hop') this.play('hop-land', this.hopPitch);
     // Engineers: blowing up a bridge, and fixing one (only Engineers repair bridges).
-    if (c === 'bridge-destroyed' && detail === 'engineer') this.play('demolition');
+    if (c === 'bridge-destroyed') this.play(detail === 'engineer' ? 'demolition' : 'explosion');
     if (c === 'bridge-repaired') this.play('bridge-repair');
   }
 
