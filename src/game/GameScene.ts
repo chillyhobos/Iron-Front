@@ -14,7 +14,7 @@ import { nextAiAction } from '../core/ai';
 import { canUsePower, commanderOf } from '../core/commanders';
 import type { Action, Command, Difficulty, GameEvent, GameState, Pos, Tile, Unit } from '../core/state';
 import { controlLabel, escapeHtml, type Hud } from '../ui/hud';
-import { clearAutosave, downloadSave, writeAutosave } from '../ui/saves';
+import { clearAutosave, downloadOnlineSave, downloadSave, writeAutosave } from '../ui/saves';
 import { forgetSession, type OnlineLink } from '../net/client';
 import type { SeatStatus } from '../net/protocol';
 import { drawTerrain, isLowFuel, makeUnitSprite, TILE } from './render';
@@ -129,7 +129,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.onEndTurn(() => this.endTurn());
     this.hud.onUndo(() => this.undo());
     this.hud.onPower(() => this.usePower());
-    this.hud.onSave(() => downloadSave(this.s));
+    this.hud.onSave(() => (this.online ? this.online.requestSave() : downloadSave(this.s)));
     this.hud.onMenu(() => {
       const text = this.online
         ? 'Leave this online game for now? It keeps going on the server: use Rejoin on the main menu to come back.'
@@ -142,7 +142,11 @@ export class GameScene extends Phaser.Scene {
     if (this.online) {
       // Online: the server runs the game; we draw what it sends and send our moves.
       const link = this.online;
-      this.hud.setOnline(link.code);
+      this.hud.setOnline(link.code, link.seat === link.host);
+      link.onSaveFile(file => {
+        downloadOnlineSave(file);
+        this.hud.flashBanner('Match saved: keep the file and use Resume a saved match to carry on', 0x3fa34d, 3500);
+      });
       link.onState((state, evs) => this.fromServer(state, evs));
       link.onPresence((on, seats) => this.showPresence(on, seats));
       link.onError(message => {

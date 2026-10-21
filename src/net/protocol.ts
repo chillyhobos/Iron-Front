@@ -39,6 +39,19 @@ export interface SeatStatus {
   standIn?: StandIn;
 }
 
+/**
+ * A saved online match. The match itself (`data`) is sealed by the server: compressed,
+ * encrypted and signed, so under fog the host can't peek at hidden armies or edit the
+ * game. Only a server with the same SAVE_SECRET can open it. `summary` is plain, for people.
+ */
+export interface OnlineSaveFile {
+  game: 'iron-front-online';
+  version: number;
+  savedAt: string;
+  summary: { map: string; day: number; armies: string[] };
+  data: string;
+}
+
 export type ClientMessage =
   /**
    * Open a new game. Standard maps: teams.length players (2–4), teams[i] is the team of
@@ -49,6 +62,8 @@ export type ClientMessage =
    */
   | { t: 'host'; you: SeatSetup; map: MapDef; fog: boolean; unitSet?: UnitSetData; teams: number[]; rows?: SeatRow[] }
   | { t: 'join'; code: string; you: SeatSetup }
+  /** Open a lobby to carry on a saved match. Friends join with the new code; their old seats wait for them. */
+  | { t: 'hostSave'; you: SeatSetup; file: OnlineSaveFile }
   /** Come back after a refresh or dropped connection. */
   | { t: 'resume'; code: string; token: string }
   /** Before the game starts: move to an empty seat (to pick your team or turn). */
@@ -69,6 +84,8 @@ export type ClientMessage =
    * or a connected teammate), or null to wait for them. It goes back to them when they return.
    */
   | { t: 'standin'; seat: number; to: StandIn | null }
+  /** Host only, during the game: get a save file of the match (answered with saveFile). */
+  | { t: 'save' }
   /** Before the start the host closes the game, anyone else gives up their seat. Later: stop playing here. */
   | { t: 'leave' };
 
@@ -88,6 +105,8 @@ export interface LobbyInfo {
   colors: number[];
   /** Seat of the player who can start the game. */
   host: number;
+  /** Carrying on a saved match: its day, and the army in each seat (as named in the save). */
+  restored?: { day: number; armies: string[] };
 }
 
 export type ServerMessage =
@@ -98,4 +117,5 @@ export type ServerMessage =
   | { t: 'state'; state: GameState; events: GameEvent[]; online: boolean[]; seats: SeatStatus[]; host: number }
   /** Someone came or went. online[i]: army i can be played right now (by its person, a CPU or a stand-in). */
   | { t: 'presence'; online: boolean[]; seats: SeatStatus[] }
+  | { t: 'saveFile'; file: OnlineSaveFile }
   | { t: 'error'; message: string; fatal?: boolean };

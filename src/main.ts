@@ -6,7 +6,7 @@ import { MapEditor } from './editor/editor';
 import { allMaps, isBuiltin } from './ui/mapStore';
 import { GameScene, TILE } from './game/GameScene';
 import { cssColor, escapeHtml, Hud } from './ui/hud';
-import { pickSaveFile, readAutosave } from './ui/saves';
+import { pickOnlineSave, pickSaveFile, readAutosave } from './ui/saves';
 import { applyUnitSet } from './core/unitSets';
 import { UnitEditor } from './ui/unitEditor';
 import { lastUnitSetPick, listUnitSets, rememberUnitSetPick } from './ui/unitSetStore';
@@ -361,11 +361,14 @@ function showLobby(client: OnlineClient, lobby: LobbyInfo) {
   const full = lobby.seats.every(Boolean);
   const isPerson = (i: number) => !!lobby.seats[i] && !lobby.seats[i]!.cpu && lobby.seats[i]!.lead === undefined;
   const teamName = (i: number) => (is3v3 ? TEAM_NAMES_3V3[lobby.teams[i]] ?? `Team ${lobby.teams[i]}` : `Team ${lobby.teams[i]}`);
-  const details = `${escapeHtml(lobby.mapName)}${lobby.fog ? ' · Fog' : ''}${lobby.unitSetName ? ` · ${escapeHtml(lobby.unitSetName)} units` : ''}`;
+  // Resuming a saved match: each seat is a saved army, shown by its name.
+  const armies = lobby.restored?.armies;
+  const details = `${lobby.restored ? `Resuming a saved match · day ${lobby.restored.day} · ` : ''}${escapeHtml(lobby.mapName)}${lobby.fog ? ' · Fog' : ''}${lobby.unitSetName ? ` · ${escapeHtml(lobby.unitSetName)} units` : ''}`;
   const seats = lobby.seats.map((s, i) => {
     const lead = s?.lead !== undefined ? lobby.seats[s.lead] : null;
+    const leadName = lead ? lead.name : armies && s?.lead !== undefined ? `${armies[s.lead]}'s player` : '?';
     const control = s?.cpu ? CONTROLS.find(([v]) => v === s.cpu)?.[1] ?? 'CPU'
-      : s?.lead !== undefined ? `played by ${lead ? escapeHtml(lead.name) : '?'}` : '';
+      : s?.lead !== undefined ? `played by ${escapeHtml(leadName)}` : '';
     // The host decides who plays any seat nobody sits in: nobody yet, a CPU, or (3 vs 3) a teammate.
     const teammates = is3v3 ? lobby.seats.map((_, j) => j).filter(j => isPerson(j) && lobby.teams[j] === lobby.teams[i]) : [];
     const current = s?.cpu ?? (s?.lead !== undefined ? `lead:${s.lead}` : 'human');
@@ -383,13 +386,16 @@ function showLobby(client: OnlineClient, lobby: LobbyInfo) {
     const takeOver = is3v3 && !amHost && !s && sameTeam ? `<button type="button" data-take="${i}">Take over</button>` : '';
     const giveBack = !amHost && s?.lead === me ? `<button type="button" data-give="${i}">Give back</button>` : '';
     let who: string;
+    const army = armies ? `<b>${escapeHtml(armies[i])}</b> ` : '';
     if (isPerson(i)) {
-      const tags = [i === me ? 'you' : '', i === lobby.host ? 'host' : '', !s!.online ? 'offline' : ''].filter(Boolean);
-      who = `<b>${escapeHtml(s!.name)}</b>${tags.length ? ` <span class="meta">(${tags.join(', ')})</span>` : ''}`;
+      // In a resumed match, say who is playing a saved army if it's someone with another name.
+      const other = armies && s!.name.trim().toLowerCase() !== armies[i].trim().toLowerCase() ? `played by ${escapeHtml(s!.name)}` : '';
+      const tags = [other, i === me ? 'you' : '', i === lobby.host ? 'host' : '', !s!.online ? 'offline' : ''].filter(Boolean);
+      who = `<b>${escapeHtml(armies ? armies[i] : s!.name)}</b>${tags.length ? ` <span class="meta">(${tags.join(', ')})</span>` : ''}`;
     } else if (s) {
-      who = `<b>${escapeHtml(s.name)}</b> ${hostPick || `<span class="meta">(${control})</span>`} ${giveBack}`;
+      who = `<b>${escapeHtml(armies ? armies[i] : s.name)}</b> ${hostPick || `<span class="meta">(${control})</span>`} ${giveBack}`;
     } else {
-      who = `<span class="meta">Empty</span> <button type="button" data-sit="${i}">Sit here</button> ${takeOver} ${hostPick}`;
+      who = `${army}<span class="meta">${armies ? 'empty' : 'Empty'}</span> <button type="button" data-sit="${i}">Sit here</button> ${takeOver} ${hostPick}`;
     }
     return `<div class="lobby-seat"><span class="swatch" style="background:${cssColor(lobby.colors[i])}"></span>
       <span class="meta">${i + 1}. ${escapeHtml(teamName(i))}</span><span>${who}</span></div>`;
@@ -399,9 +405,11 @@ function showLobby(client: OnlineClient, lobby: LobbyInfo) {
   const status = full
     ? (amHost ? 'Everyone is here.' : 'Everyone is here. Waiting for the host to start…')
     : `Waiting for ${waitingFor} more player${waitingFor === 1 ? '' : 's'}…${amHost ? ` (or fill the empty seats with ${fill})` : ''}`;
-  const help = is3v3
-    ? 'West vs East, turns alternate between the teams. Pick an empty seat to change team. An army nobody sits in is played by a CPU, or by a teammate who then plays two armies.'
-    : 'Turns go in seat order. Pick an empty seat to change your team or turn.';
+  const help = lobby.restored
+    ? 'Friends join with this new code. Using the same name as before puts them back on their army, or they can pick one with Sit here. Names, commanders and the whole match come from the save.'
+    : is3v3
+      ? 'West vs East, turns alternate between the teams. Pick an empty seat to change team. An army nobody sits in is played by a CPU, or by a teammate who then plays two armies.'
+      : 'Turns go in seat order. Pick an empty seat to change your team or turn.';
   showOnlineStatus(`Share this code with your friends:<div class="code">${escapeHtml(lobby.code)}</div>${details}
     <div class="lobby-seats">${seats}</div>
     <div class="meta">${help}</div>
@@ -484,6 +492,17 @@ $('join-btn').onclick = () => {
   newOnlineClient().join(code, onlineYou());
 };
 joinCode.onkeydown = e => { if (e.key === 'Enter') $('join-btn').click(); };
+
+// Carry on a match the host saved earlier: the server opens a new room with everyone's seats waiting.
+$('resume-btn').onclick = () => {
+  showSetupError(null);
+  pickOnlineSave()
+    .then(file => {
+      showOnlineStatus('Connecting…');
+      newOnlineClient().hostSave(onlineYou(), file);
+    })
+    .catch((e: Error) => showOnlineStatus(`<span style="color:#ffb4b4">${escapeHtml(e.message)}</span>`));
+};
 
 const savedOnline = savedSession();
 if (savedOnline) {

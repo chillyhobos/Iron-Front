@@ -4,7 +4,8 @@
 // Everything players do arrives here as a message; the real rules engine decides
 // what happens, and each player gets back only what their side may see.
 // If someone drops out mid-game, the host can hand their army to a CPU or a teammate
-// until they come back.
+// until they come back. The host can also save the match to a sealed file and carry
+// on from it later in a new room, where everyone's seats wait for them.
 
 import { randomBytes } from 'crypto';
 import { createGame, mapMode, slotsFor, type MapDef, type MapMode } from '../src/core/maps';
@@ -15,9 +16,10 @@ import { COMMANDERS } from '../src/core/commanders';
 import { PLAYER_COLORS } from '../src/core/data';
 import { playerView, visibleEvents } from '../src/core/view';
 import { checkMap } from '../src/core/mapTools';
+import { seal, unseal } from './seal';
 import type { Action, Difficulty, GameEvent, GameState } from '../src/core/state';
 import {
-  CODE_LENGTH, CODE_LETTERS, type ClientMessage, type LobbyInfo, type SeatRow, type SeatSetup, type SeatStatus, type ServerMessage, type StandIn,
+  CODE_LENGTH, CODE_LETTERS, type ClientMessage, type LobbyInfo, type OnlineSaveFile, type SeatRow, type SeatSetup, type SeatStatus, type ServerMessage, type StandIn,
 } from '../src/net/protocol';
 
 export const MIN_SEATS = 2;
@@ -26,6 +28,8 @@ export const SEATS_3V3 = 6;
 /** Pause between CPU actions, so people can follow what the CPU does. */
 export const CPU_STEP_MS = 300;
 const DIFFICULTIES = new Set<Difficulty>(['easy', 'medium', 'hard']);
+/** Bump when saved matches change shape in a way older servers can't read. */
+const SAVE_VERSION = 1;
 /** Rooms nobody has touched for this long are closed. */
 const ROOM_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -48,10 +52,22 @@ interface Seat {
   leadToken?: string;
   /** During the game: who covers this army while the person who normally plays it is away. */
   standIn?: { cpu?: Difficulty; leadToken?: string };
+  /** Resuming a save: played by whoever takes this other seat (becomes leadToken when they do). */
+  pendingLead?: number;
 }
 
 /** A seat with a person in it. */
-const isPerson = (s: Seat | null | undefined): boolean => !!s && !s.cpu && !s.leadToken;
+const isPerson = (s: Seat | null | undefined): boolean => !!s && !s.cpu && !s.leadToken && s.pendingLead === undefined;
+
+/** What a save file holds (sealed): the whole match, not any one player's fogged view. */
+interface SavedMatch {
+  room: {
+    map: MapDef; mode: MapMode; fog: boolean; unitSet?: UnitSetData; teams: number[]; armySetups: SeatSetup[];
+    seats: Array<{ kind: 'person' | 'cpu' | 'shared'; cpu?: Difficulty; lead?: number }>;
+    hostSeat: number;
+  };
+  state: GameState;
+}
 
 export interface Room {
   code: string;
@@ -70,6 +86,10 @@ export interface Room {
   hostToken: string;
   state: GameState | null;
   touched: number;
+  /** Carrying on a saved match: the game waiting for the host to start it again. */
+  restored?: GameState;
+  /** In a resumed match, the army in each seat (people rejoining with that name get it back). */
+  armyNames?: string[];
 }
 
 const ACTION_TYPES = new Set(['act', 'build', 'endTurn', 'power']);
@@ -88,6 +108,8 @@ export class Rooms {
       switch (msg?.t) {
         case 'host': return this.host(conn, msg);
         case 'join': return this.join(conn, msg);
+        case 'hostSave': return this.hostSave(conn, msg);
+        case 'save': return this.saveMatch(conn);
         case 'resume': return this.resume(conn, msg);
         case 'sit': return this.sit(conn, msg.seat);
         case 'cpu': return this.setCpu(conn, msg.seat, msg.difficulty);
@@ -177,13 +199,93 @@ export class Rooms {
     if (conn.room) return conn.send({ t: 'error', message: "You're already in a game." });
     const room = this.rooms.get(String(msg.code ?? '').trim().toUpperCase());
     if (!room) return conn.send({ t: 'error', message: 'No game with that code. Check it with your friend.' });
-    // An empty seat, or else an army a teammate was going to play as well: a real person beats sharing.
-    let free = room.seats.findIndex(s => s === null);
+    const you = cleanSetup(msg.you);
+    // Their old seat in a resumed match, an empty seat, or else an army a teammate was going
+    // to play as well: a real person beats sharing.
+    let free = this.savedSeatFor(room, you.name);
+    if (free < 0) free = room.seats.findIndex(s => s === null);
     if (free < 0) free = room.seats.findIndex(s => !!s?.leadToken);
     if (room.state || free < 0) return conn.send({ t: 'error', message: 'That game is already full.' });
     room.touched = this.now();
-    this.seat(conn, room, free, cleanSetup(msg.you));
+    this.seat(conn, room, free, you);
     this.broadcastLobby(room);
+  }
+
+  /** In a resumed match: the empty seat whose army has this person's name (-1 if none). */
+  private savedSeatFor(room: Room, name: string): number {
+    const want = name.trim().toLowerCase();
+    return room.armyNames ? room.seats.findIndex((s, i) => s === null && room.armyNames![i].trim().toLowerCase() === want) : -1;
+  }
+
+  /** Carry on a saved match: a new room whose seats are the saved armies, waiting for their people. */
+  private hostSave(conn: Conn, msg: Extract<ClientMessage, { t: 'hostSave' }>) {
+    if (conn.room) return conn.send({ t: 'error', message: "You're already in a game." });
+    const file = msg.file;
+    if (file?.game !== 'iron-front-online' || typeof file.data !== 'string') return conn.send({ t: 'error', message: "That file isn't a saved online match." });
+    if (!(file.version <= SAVE_VERSION)) return conn.send({ t: 'error', message: 'That save is from a newer version of the game.' });
+    let saved: SavedMatch;
+    try {
+      saved = unseal(file.data) as SavedMatch;
+    } catch {
+      return conn.send({ t: 'error', message: 'That save is damaged, or was made on a different server (saves only open on the server that made them).' });
+    }
+    const { room: r, state } = saved;
+    const n = state?.players?.length ?? 0;
+    if (!r || r.seats?.length !== n || r.teams?.length !== n || r.armySetups?.length !== n || checkMap(r.map)) {
+      return conn.send({ t: 'error', message: 'That save is damaged.' });
+    }
+    if (state.winnerTeam !== null) return conn.send({ t: 'error', message: 'That match is already over.' });
+    let unitSet: UnitSetData | undefined;
+    if (r.unitSet) {
+      unitSet = upgradeUnitSet(r.unitSet);
+      if (validateUnitSet(unitSet).length) return conn.send({ t: 'error', message: "That save's unit set is damaged." });
+    }
+    const room: Room = {
+      code: this.newCode(), map: r.map, mode: r.mode, fog: r.fog, unitSet, teams: r.teams,
+      seats: Array(n).fill(null), armySetups: r.armySetups, cpuBusy: false, hostToken: '', state: null,
+      touched: this.now(), restored: state, armyNames: state.players.map(p => p.name),
+    };
+    r.seats.forEach((st, i) => {
+      if (st.kind === 'cpu') room.seats[i] = this.cpuSeat(room, i, DIFFICULTIES.has(st.cpu!) ? st.cpu! : 'medium');
+      else if (st.kind === 'shared' && Number.isInteger(st.lead)) room.seats[i] = { you: room.armySetups[i], token: '', conn: null, pendingLead: st.lead };
+    });
+    // The host takes their own army back (by name, else the seat the match was saved from), else any free seat.
+    const you = cleanSetup(msg.you);
+    let hostSeat = this.savedSeatFor(room, you.name);
+    if (hostSeat < 0 && room.seats[r.hostSeat] === null) hostSeat = r.hostSeat;
+    if (hostSeat < 0) hostSeat = room.seats.findIndex(s => s === null);
+    if (hostSeat < 0) return conn.send({ t: 'error', message: 'Every army in that match is a CPU: there is no seat for you.' });
+    this.rooms.set(room.code, room);
+    room.hostToken = this.seat(conn, room, hostSeat, you);
+    this.broadcastLobby(room);
+  }
+
+  /** Host only: the whole match, sealed, to download and carry on later. */
+  private saveMatch(conn: Conn) {
+    const room = conn.room;
+    const s = room?.state;
+    if (!room || !s || conn.seat === undefined) return conn.send({ t: 'error', message: 'The game has not started.' });
+    if (room.seats[conn.seat]?.token !== room.hostToken) return conn.send({ t: 'error', message: 'Only the host can save the match.' });
+    if (s.winnerTeam !== null) return conn.send({ t: 'error', message: 'The match is over: there is nothing to save.' });
+    const saved: SavedMatch = {
+      room: {
+        map: room.map, mode: room.mode, fog: room.fog, unitSet: room.unitSet, teams: room.teams, armySetups: room.armySetups,
+        // Stand-ins aren't saved: absent players get their armies back when the match carries on.
+        seats: room.seats.map(seat => {
+          if (seat?.cpu) return { kind: 'cpu' as const, cpu: seat.cpu };
+          const lead = seat?.leadToken ? this.leadOf(room, seat) : -1;
+          return lead >= 0 ? { kind: 'shared' as const, lead } : { kind: 'person' as const };
+        }),
+        hostSeat: conn.seat,
+      },
+      state: s,
+    };
+    const file: OnlineSaveFile = {
+      game: 'iron-front-online', version: SAVE_VERSION, savedAt: new Date(this.now()).toISOString(),
+      summary: { map: room.map.name, day: s.day, armies: s.players.map(p => p.name) },
+      data: seal(saved),
+    };
+    conn.send({ t: 'saveFile', file });
   }
 
   /** Before the start, players can move to an empty seat to choose their team and turn. */
@@ -200,6 +302,7 @@ export class Rooms {
     conn.seat = to;
     // Armies they were going to play on their old team go back to being empty.
     room.seats.forEach((s, i) => { if (s?.leadToken === seat.token && room.teams[i] !== room.teams[to]) room.seats[i] = null; });
+    this.claimPendingLeads(room, to, seat.token);
     room.touched = this.now();
     conn.send({ t: 'seat', code: room.code, seat: to, token: seat.token });
     this.broadcastLobby(room);
@@ -271,6 +374,11 @@ export class Rooms {
     if (!room.seats.every(Boolean)) {
       return conn.send({ t: 'error', message: `Wait until every seat is taken (or fill empty seats with CPUs${room.mode === '3v3' ? ' or teammates' : ''}).` });
     }
+    const orphan = room.seats.findIndex(s => s?.pendingLead !== undefined);
+    if (orphan >= 0) {
+      const names = room.armyNames!;
+      return conn.send({ t: 'error', message: `${names[orphan]} was played by ${names[room.seats[orphan]!.pendingLead!]}'s player, who isn't here: choose who plays it now.` });
+    }
     this.start(room);
   }
 
@@ -319,6 +427,14 @@ export class Rooms {
 
   private start(room: Room) {
     applyUnitSet(room.unitSet);
+    if (room.restored) {
+      // Carry on exactly where the save left off; the seats decide who plays each army now.
+      room.state = room.restored;
+      delete room.restored;
+      room.state.log.push(`Match resumed from a save (day ${room.state.day}).`);
+      room.touched = this.now();
+      return this.controlChanged(room, room.seats.map((_, i) => i));
+    }
     const setups = room.seats.map((seat, i) => {
       const lead = seat!.leadToken ? this.leadOf(room, seat!) : -1;
       return {
@@ -489,7 +605,18 @@ export class Rooms {
     conn.room = room;
     conn.seat = seatNo;
     conn.send({ t: 'seat', code: room.code, seat: seatNo, token });
+    this.claimPendingLeads(room, seatNo, token);
     return token;
+  }
+
+  /** Resumed match: whoever takes a seat also gets the armies that seat's player was playing for teammates. */
+  private claimPendingLeads(room: Room, seatNo: number, token: string) {
+    for (const s of room.seats) {
+      if (s?.pendingLead === seatNo) {
+        s.leadToken = token;
+        delete s.pendingLead;
+      }
+    }
   }
 
   private sendState(room: Room, seatNo: number, events: GameEvent[]) {
@@ -521,11 +648,12 @@ export class Rooms {
       seats: room.seats.map((s, i) => (s ? {
         name: s.you.name, online: online[i],
         ...(s.cpu ? { cpu: s.cpu } : {}),
-        ...(s.leadToken ? { lead: this.leadOf(room, s) } : {}),
+        ...(s.leadToken ? { lead: this.leadOf(room, s) } : s.pendingLead !== undefined ? { lead: s.pendingLead } : {}),
       } : null)),
       teams: room.teams,
       colors: slots.map(slot => PLAYER_COLORS[slot - 1]),
       host: room.seats.findIndex(s => s?.token === room.hostToken),
+      ...(room.armyNames ? { restored: { day: (room.restored ?? room.state)?.day ?? 0, armies: room.armyNames } } : {}),
     };
     for (const s of room.seats) s?.conn?.send({ t: 'lobby', lobby });
   }

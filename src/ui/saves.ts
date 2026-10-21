@@ -2,6 +2,7 @@
 // is just that object plus a small header.
 
 import type { GameState } from '../core/state';
+import type { OnlineSaveFile } from '../net/protocol';
 import { upgradeUnitSet, validateUnitSet } from '../core/unitSets';
 
 const AUTOSAVE_KEY = 'iron-front.autosave';
@@ -29,6 +30,9 @@ export function parseSave(text: string): GameState {
     save = JSON.parse(text);
   } catch {
     throw new Error("That file isn't a valid save (couldn't read it).");
+  }
+  if ((save as { game?: string })?.game === 'iron-front-online') {
+    throw new Error("That's a saved online match: use Resume a saved match under Online instead.");
   }
   if (save?.game !== 'iron-front' || !save.state) throw new Error("That file isn't an Iron Front save.");
   if (save.version > SAVE_VERSION) throw new Error('That save is from a newer version of the game.');
@@ -71,32 +75,61 @@ export function clearAutosave() {
 
 // ---------------------------------------------------------------- save files (portable)
 
-export function downloadSave(state: GameState) {
-  const blob = new Blob([serialize(state)], { type: 'application/json' });
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const map = (state.mapName ?? 'game').toLowerCase().replace(/[^a-z0-9]+/g, '-');
   a.href = url;
-  a.download = `iron-front-${map}-day${state.day}.json`;
+  a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Opens a file picker and resolves with the loaded game (rejects with a readable Error). */
-export function pickSaveFile(): Promise<GameState> {
+export function downloadSave(state: GameState) {
+  downloadText(`iron-front-${slug(state.mapName ?? 'game')}-day${state.day}.json`, serialize(state));
+}
+
+/** Opens a file picker and resolves with the text of the chosen file. */
+function pickTextFile(): Promise<string> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,application/json';
-    input.onchange = async () => {
+    input.onchange = () => {
       const file = input.files?.[0];
-      if (!file) return;
-      try {
-        resolve(parseSave(await file.text()));
-      } catch (e) {
-        reject(e);
-      }
+      if (file) file.text().then(resolve, reject);
     };
     input.click();
   });
+}
+
+/** Opens a file picker and resolves with the loaded game (rejects with a readable Error). */
+export function pickSaveFile(): Promise<GameState> {
+  return pickTextFile().then(parseSave);
+}
+
+// ---------------------------------------------------------------- online match saves
+
+/** The server seals the match; the browser only stores and hands back the file. */
+export function downloadOnlineSave(file: OnlineSaveFile) {
+  downloadText(`iron-front-online-${slug(file.summary.map)}-day${file.summary.day}.json`, JSON.stringify(file));
+}
+
+export function parseOnlineSave(text: string): OnlineSaveFile {
+  let file: Omit<OnlineSaveFile, 'game'> & { game?: string };
+  try {
+    file = JSON.parse(text);
+  } catch {
+    throw new Error("That file isn't a valid save (couldn't read it).");
+  }
+  if (file?.game === 'iron-front') throw new Error("That's a save from a game on one computer: use Load save file… at the top instead.");
+  if (file?.game !== 'iron-front-online' || typeof file.data !== 'string' || !file.summary) throw new Error("That file isn't a saved online match.");
+  return file as OnlineSaveFile;
+}
+
+/** Opens a file picker for a saved online match. */
+export function pickOnlineSave(): Promise<OnlineSaveFile> {
+  return pickTextFile().then(parseOnlineSave);
 }

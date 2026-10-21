@@ -51,10 +51,14 @@ export class Hud {
     ($('undo-btn') as HTMLButtonElement).disabled = !enabled;
   }
 
-  /** Online games: no undo (the other player already saw the move) and no save file (the server keeps the game). */
-  setOnline(code: string) {
+  /**
+   * Online games: no undo (the other players already saw the move). Only the host can
+   * save, and their save holds the whole match (the server seals it), not just their view.
+   */
+  setOnline(code: string, canSave: boolean) {
     $('undo-btn').classList.add('hidden');
-    $('save-btn').classList.add('hidden');
+    $('save-btn').classList.toggle('hidden', !canSave);
+    if (canSave) $('save-btn').title = 'Download the whole match, to carry on later with Resume a saved match';
     $('online-tag').textContent = `Online · code ${code}`;
     $('online-tag').classList.remove('hidden');
   }
@@ -217,6 +221,19 @@ export class Hud {
       b.textContent = text;
       b.style.borderColor = color !== undefined ? cssColor(color) : '';
     }
+  }
+
+  /** Show a banner for a moment, then put back whatever it said before (unless that changed meanwhile). */
+  flashBanner(text: string, color: number, ms: number) {
+    const b = $('banner');
+    const before = { hidden: b.classList.contains('hidden'), text: b.textContent, border: b.style.borderColor };
+    this.showBanner(text, color);
+    setTimeout(() => {
+      if (b.textContent !== text) return;
+      b.classList.toggle('hidden', before.hidden);
+      b.textContent = before.text;
+      b.style.borderColor = before.border;
+    }, ms);
   }
 
   /** End-of-game summary table. */

@@ -211,6 +211,7 @@ Tick **Fog of war** on the setup screen before deploying (it remembers your choi
 - **Autosave:** the game saves in your browser after every action. Use **Continue** on the main menu to pick up where you left off, even mid-way through a CPU's turn.
 - **Save file:** the **Save** button downloads a `.json` file. Use **Load save file…** on the main menu to load it, on any computer.
 - CPU turns keep running if you switch to another tab. Animations are skipped while the tab is hidden.
+- **Online matches** have their own save: see **Saving an online match** under Online play.
 
 ## Online play (2–6 players)
 
@@ -244,6 +245,12 @@ It listens on port 8787. The dev server forwards `/ws` to it, so players still o
 - The side panel shows the game code, or which players are disconnected.
 - A beaten player can keep watching until the game ends.
 - **Closing the tab is fine:** use **Rejoin** on the main menu to come back. The game waits on the server.
+- **Saving an online match:** the host has a **Save** button. It downloads a file of the whole match (`iron-front-online-…-dayN.json`), taken at that moment. To carry on later, even after the server restarted or slept:
+  1. The host clicks **Resume a saved match…** under Online and picks the file. A lobby opens with a **new code**, with every army's seat waiting.
+  2. Friends join with the new code. Using the **same name** as before puts each of them back on their own army, or they can pick one with **Sit here**.
+  3. CPU armies stay CPUs, and an army someone played for a teammate goes back to them. The host can put a CPU or a teammate on any army whose player can't make it, then clicks **Start game**. Play carries on exactly where it was saved, mid-turn included.
+  - The file is sealed by the server: nobody can open it to peek at armies hidden by fog, and an edited file is refused.
+  - A save only opens on the server that made it. Saves from your PC (`npm start`) and from Render don't mix. On Render the key is `SAVE_SECRET` (Render generates it): changing or deleting it means older saves can't be opened.
 - **Someone drops out:** the host gets an **Away players** box in the side panel, with a menu for each army whose player is disconnected (including armies they play for a teammate):
   - **Nobody: wait for them:** the game waits for them, as before.
   - **CPU · Easy / Medium / Hard:** a CPU plays the army, starting at once if it's that army's turn.
@@ -257,9 +264,9 @@ It listens on port 8787. The dev server forwards `/ws` to it, so players still o
 
 **Limits for now:**
 - Only the host can hand out stand-ins, so if the host is away the others have to wait for them.
-- No undo or save files online.
+- No undo online. A save is only taken when the host clicks Save: nothing saves by itself.
 - The other player's moves appear instantly instead of being animated.
-- Games live in the server's memory: restarting the server ends them. Unfinished games are cleared after 6 hours without activity.
+- Games live in the server's memory: restarting the server ends them unless the host saved first. Unfinished games are cleared after 6 hours without activity.
 - Two tabs in the same browser share one Rejoin slot, so test with different browsers or private windows.
 
 ## Hosting on Render
@@ -306,7 +313,8 @@ Commit and push your changes (`git add .`, `git commit -m "…"`, `git push`), a
 ### Free-tier things to know
 
 - **It sleeps when unused:** after 15 minutes with no visitors. The next visit wakes it in about a minute (the page shows a loading screen). It stays awake while people are playing.
-- **Games live in memory:** a sleep, redeploy or restart ends every game in progress. Lobby codes from before don't work afterwards.
+- **Games live in memory:** a sleep, redeploy or restart ends every game in progress, and lobby codes from before stop working. Click **Save** before you stop or push an update, then carry on with **Resume a saved match**.
+- **Save key:** `render.yaml` makes Render generate a `SAVE_SECRET` for sealing saves. Check it's listed under your service's **Environment** tab. If it isn't, add it there yourself (any long random text) before saving matches, and don't change it afterwards.
 - **Hours:** free services get 750 hours a month, enough for one service running all month.
 - **If the game says it can't reach the server:** it was probably waking up. Refresh the page.
 
@@ -377,7 +385,7 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/game/render.ts` | Terrain, building and unit drawing shared by the game and the editor |
 | `src/game/GameScene.ts` | Phaser rendering and input |
 | `src/ui/hud.ts` | HTML side panel, menus, overlays |
-| `server/` | Online game server: rooms, join codes, turn checks (Node + WebSockets) |
+| `server/` | Online game server: rooms, join codes, turn checks (Node + WebSockets); `seal.ts` seals saved matches |
 | `render.yaml` | How Render builds and starts the server (see **Hosting on Render**) |
 | `src/net/` | Online message format (`protocol.ts`) and the browser connection (`client.ts`) |
 | `src/core/view.ts` | What each player may see online under fog |

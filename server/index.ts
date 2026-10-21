@@ -10,6 +10,7 @@ import { networkInterfaces } from 'os';
 import { extname, join, normalize, resolve } from 'path';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { Rooms, type Conn } from './rooms';
+import { usingDevSecret } from './seal';
 import type { ClientMessage } from '../src/net/protocol';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -84,4 +85,5 @@ http.listen(PORT, () => {
   const lan = Object.values(networkInterfaces()).flat()
     .filter(a => a && a.family === 'IPv4' && !a.internal).map(a => `http://${a!.address}:${PORT}`);
   console.log(`Iron Front server on http://localhost:${PORT}${lan.length ? ` (same network: ${lan.join(', ')})` : ''}`);
+  if (usingDevSecret) console.log('Saved online matches use the development key. Set SAVE_SECRET to keep them private (Render sets one).');
 });

@@ -10,3 +10,8 @@ services:
     startCommand: npm start
     healthCheckPath: /healthz
     autoDeployTrigger: commit
+    envVars:
+      # Key that seals saved online matches. Render makes a random one once; changing
+      # or deleting it later means older save files can no longer be opened.
+      - key: SAVE_SECRET
+        generateValue: true

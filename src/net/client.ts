@@ -2,7 +2,7 @@
 // seat (code + token) so a refresh can rejoin the game.
 
 import type { Action, Difficulty, GameEvent, GameState } from '../core/state';
-import type { ClientMessage, LobbyInfo, SeatStatus, ServerMessage, StandIn } from './protocol';
+import type { ClientMessage, LobbyInfo, OnlineSaveFile, SeatStatus, ServerMessage, StandIn } from './protocol';
 
 const SESSION_KEY = 'iron-front.online';
 
@@ -46,6 +46,9 @@ export interface OnlineLink {
   onPresence(cb: (online: boolean[], seats: SeatStatus[]) => void): void;
   /** Host: cover an absent player's army with a CPU or a teammate, or null to wait for them. */
   standIn(seat: number, to: StandIn | null): void;
+  /** Host: ask the server for a save file of the whole match (it arrives through onSaveFile). */
+  requestSave(): void;
+  onSaveFile(cb: (file: OnlineSaveFile) => void): void;
   onError(cb: (message: string) => void): void;
   /** Stop playing here (the seat is kept on the server, so you can rejoin). */
   leave(): void;
@@ -66,6 +69,7 @@ export class OnlineClient {
   private stateCb: (state: GameState, events: GameEvent[]) => void = () => {};
   private presenceCb: (online: boolean[], seats: SeatStatus[]) => void = () => {};
   private lastPresence: [boolean[], SeatStatus[]] = [[], []];
+  private saveFileCb: (file: OnlineSaveFile) => void = () => {};
   private hostSeat = -1;
   private errorCb: (message: string) => void = () => {};
   private retry = 0;
@@ -75,6 +79,8 @@ export class OnlineClient {
 
   host(msg: Extract<ClientMessage, { t: 'host' }>) { this.connect(msg); }
   join(code: string, you: { name: string; commander?: string }) { this.connect({ t: 'join', code, you }); }
+  /** Carry on a saved match in a new room (you host it). */
+  hostSave(you: { name: string; commander?: string }, file: OnlineSaveFile) { this.connect({ t: 'hostSave', you, file }); }
   resume(s: OnlineSession) { this.connect({ t: 'resume', code: s.code, token: s.token }); }
 
   /** Our seat, or -1 before the server gave us one. */
@@ -148,6 +154,8 @@ export class OnlineClient {
         return this.stateCb(msg.state, msg.events);
       case 'presence':
         return this.presence(msg.online, msg.seats);
+      case 'saveFile':
+        return this.saveFileCb(msg.file);
       case 'error':
         if (msg.fatal) {
           forgetSession();
@@ -175,6 +183,8 @@ export class OnlineClient {
       host: this.hostSeat,
       onPresence: cb => { this.presenceCb = cb; cb(...this.lastPresence); },
       standIn: (seat, to) => this.send({ t: 'standin', seat, to }),
+      requestSave: () => this.send({ t: 'save' }),
+      onSaveFile: cb => { this.saveFileCb = cb; },
       onError: cb => { this.errorCb = cb; },
       leave: () => { this.closedOnPurpose = true; this.ws?.close(); },
     };
