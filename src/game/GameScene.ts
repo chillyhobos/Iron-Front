@@ -475,18 +475,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Slide a unit along a path, one tile every `ms`. Infantry footsteps sound as each
-   * tile is entered, by what the ground is (cue 'footstep' with the terrain), but only
-   * on tiles the player can see.
+   * Slide a unit along a path, one tile every `ms`. As each tile is entered, infantry
+   * make a footstep by what the ground is (cue 'footstep' with the terrain) and anything
+   * else keeps its engine running (cue 'drive' with the unit type), but only on tiles
+   * the player can see.
    */
   private walk(type: UnitType, sprite: Phaser.GameObjects.Container, path: Pos[], ms: number, onComplete: () => void) {
     const onFoot = UNITS[type].moveType === 'foot' || UNITS[type].moveType === 'boot';
+    const enter = (p: Pos) => {
+      if (this.seesTile(p.x, p.y)) cue(onFoot ? 'footstep' : 'drive', onFoot ? tileAt(this.s, p.x, p.y).terrain : type);
+    };
     this.tweens.chain({
       targets: sprite,
-      tweens: path.slice(1).map(p => ({
-        x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ms,
-        ...(onFoot ? { onStart: () => { if (this.seesTile(p.x, p.y)) cue('footstep', tileAt(this.s, p.x, p.y).terrain); } } : {}),
-      })),
+      tweens: path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ms, onStart: () => enter(p) })),
       onComplete,
     });
   }

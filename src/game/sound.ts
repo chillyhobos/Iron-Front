@@ -29,7 +29,27 @@ const FOOTSTEP_SOUNDS: Partial<Record<string, SoundName>> = {
   river: 'step-water',
 };
 
+/**
+ * Which engine loop each vehicle, aircraft and ship makes while it moves, and how fast
+ * it plays (slower is bigger and deeper). Infantry use footsteps instead.
+ */
+const DRIVE_SOUNDS: Partial<Record<string, [SoundName, number]>> = {
+  ltank: ['drive-treads', 1.05], htank: ['drive-treads', 0.8], apc: ['drive-treads', 1.15],
+  artillery: ['drive-treads', 0.95], flak: ['drive-treads', 1],
+  scout: ['drive-tires', 1.15], rocket: ['drive-tires', 0.85], missile: ['drive-tires', 0.92],
+  fighter: ['fly-jet', 1.1], bomber: ['fly-jet', 0.82],
+  gunship: ['fly-rotor', 1], airlift: ['fly-rotor', 0.86],
+  cruiser: ['sail', 1.05], battleship: ['sail', 0.85], lander: ['sail', 1],
+};
+
+/** An engine keeps running this long after its unit's last tile, then fades (a tile takes 70–90 ms). */
+const ENGINE_HOLD_MS = 160;
+/** How quickly an engine fades in and out (time constant, seconds). */
+const ENGINE_FADE_IN = 0.02;
+const ENGINE_FADE_OUT = 0.06;
+
 type Prefs = { volume: number; muted: boolean };
+type Engine = { type: string; source: AudioBufferSourceNode; gain: GainNode; hold: number };
 
 class SoundEngine {
   private ctx: AudioContext | null = null;
@@ -38,6 +58,8 @@ class SoundEngine {
   private voices = 0;
   private listeners = new Set<() => void>();
   private rand = seeded(Date.now());
+  /** The moving vehicle's engine, while one is moving (one at a time, as moves are). */
+  private engine: Engine | null = null;
   /** 0–1, as on the slider. */
   volume = 0.6;
   muted = false;
@@ -57,6 +79,7 @@ class SoundEngine {
     window.addEventListener('pointerdown', start, { capture: true });
     window.addEventListener('keydown', start, { capture: true });
     onCue((c, detail) => this.onCue(c, detail));
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.stopEngine(); });
   }
 
   setVolume(volume: number) {
@@ -127,29 +150,81 @@ class SoundEngine {
       const name = FOOTSTEP_SOUNDS[detail];
       if (name) this.play(name);
     }
+    if (c === 'drive' && detail) this.drive(detail);
     // Engineers: blowing up a bridge, and fixing one (only Engineers repair bridges).
     if (c === 'bridge-destroyed' && detail === 'engineer') this.play('demolition');
     if (c === 'bridge-repaired') this.play('bridge-repair');
   }
 
-  /** Play one of a sound's variants, slightly varied so repeats don't sound robotic. */
-  play(name: SoundName) {
-    const ctx = this.ctx;
-    const clips = this.clips.get(name);
-    if (!ctx || !this.master || !clips || this.muted || this.volume === 0 || document.hidden) return;
-    if (ctx.state !== 'running' || this.voices >= MAX_VOICES) return;
-    const source = ctx.createBufferSource();
-    source.buffer = clips[Math.floor(this.rand() * clips.length)];
-    source.playbackRate.value = 0.96 + this.rand() * 0.08;
-    const gain = ctx.createGain();
-    gain.gain.value = SFX_LEVEL * (0.85 + this.rand() * 0.15); // every sound at the same level
-    source.connect(gain).connect(this.master);
+  /** Whether sounds can play right now (started, audible, tab in view, voices to spare). */
+  private canPlay(): boolean {
+    return !!this.ctx && !!this.master && !this.muted && this.volume > 0 && !document.hidden
+      && this.ctx.state === 'running' && this.voices < MAX_VOICES;
+  }
+
+  /**
+   * A vehicle entered a tile: start its engine loop, or keep it running. It fades out
+   * once tiles stop coming (the move ended, or the unit drove out of sight).
+   */
+  private drive(type: string) {
+    const entry = DRIVE_SOUNDS[type];
+    if (!entry) return;
+    if (this.engine && this.engine.type !== type) this.stopEngine();
+    if (!this.engine) {
+      const clips = this.clips.get(entry[0]);
+      if (!clips || !this.canPlay()) return;
+      const ctx = this.ctx!;
+      const source = ctx.createBufferSource();
+      source.buffer = clips[Math.floor(this.rand() * clips.length)];
+      source.loop = true;
+      source.playbackRate.value = entry[1] * (0.97 + this.rand() * 0.06);
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.gain.setTargetAtTime(SFX_LEVEL * (0.85 + this.rand() * 0.15), ctx.currentTime, ENGINE_FADE_IN); // same level as every sound
+      source.connect(gain).connect(this.master!);
+      this.track(source, gain);
+      // Start somewhere in the loop, so back-to-back moves don't all begin alike.
+      source.start(0, this.rand() * source.buffer.duration);
+      this.engine = { type, source, gain, hold: 0 };
+    }
+    const engine = this.engine;
+    clearTimeout(engine.hold);
+    engine.hold = window.setTimeout(() => { if (this.engine === engine) this.stopEngine(); }, ENGINE_HOLD_MS);
+  }
+
+  private stopEngine() {
+    const engine = this.engine;
+    if (!engine || !this.ctx) return;
+    this.engine = null;
+    clearTimeout(engine.hold);
+    const now = this.ctx.currentTime;
+    engine.gain.gain.cancelScheduledValues(now);
+    engine.gain.gain.setTargetAtTime(0, now, ENGINE_FADE_OUT);
+    engine.source.stop(now + ENGINE_FADE_OUT * 6);
+  }
+
+  /** Count a voice while it plays, and let it go when it ends. */
+  private track(source: AudioBufferSourceNode, gain: GainNode) {
     this.voices++;
     source.onended = () => {
       this.voices--;
       source.disconnect();
       gain.disconnect();
     };
+  }
+
+  /** Play one of a sound's variants, slightly varied so repeats don't sound robotic. */
+  play(name: SoundName) {
+    const ctx = this.ctx;
+    const clips = this.clips.get(name);
+    if (!ctx || !clips || !this.canPlay()) return;
+    const source = ctx.createBufferSource();
+    source.buffer = clips[Math.floor(this.rand() * clips.length)];
+    source.playbackRate.value = 0.96 + this.rand() * 0.08;
+    const gain = ctx.createGain();
+    gain.gain.value = SFX_LEVEL * (0.85 + this.rand() * 0.15); // every sound at the same level
+    source.connect(gain).connect(this.master!);
+    this.track(source, gain);
     source.start();
   }
 }

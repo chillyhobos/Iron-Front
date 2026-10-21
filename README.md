@@ -17,8 +17,9 @@ It installs and builds the game the first time (a minute or two), starts it, and
 - **Rifleman:** a punchy, bassy automatic-rifle crack with a sci-fi edge, three shots per attack in time with its tracers.
 - **Engineer:** a lighter, faster SMG: a higher, raspy rattle with a bolt clack, four quick shots per attack. Blowing up a bridge gives a short, crisp blast, and repairing one gives a wrench ratchet and two clanks on steel.
 - **Infantry footsteps:** Riflemen, Bazookas, Snipers and Engineers run with a step on every tile, by what the ground is. Plains give a soft grass step, forest a crunch of leaves, mountains gravel, and roads, towns and bases a crisp boot tap. Bridges give a hollow wooden thunk and rivers a splash. Under fog you only hear steps where you can see.
+- **Vehicle engines:** everything else makes an engine sound for as long as it moves. Tanks, the Armored Carrier, Artillery and Flak Guns get a diesel chug and clanking treads. The Scout Car and the rocket and missile trucks get a smoother engine and tire roar. Interceptors and Bombers get a jet roar with a turbine whine. Gunships and Airlifts get a chopping rotor. Ships get the wash of a bow wave over a low hum. Bigger units play deeper, so a Heavy Tank rumbles lower than a Light Tank. Under fog you only hear a unit while it moves through tiles you can see.
 
-Other units are silent for now. Every sound plays at the same loudness. Use the speaker button and volume slider in the side panel, or press **M** to mute. Your setting is remembered in your browser. Sound starts after your first click, as browsers require.
+Other units' weapons are silent for now. Every sound plays at the same loudness. Use the speaker button and volume slider in the side panel, or press **M** to mute. Your setting is remembered in your browser. Sound starts after your first click, as browsers require.
 
 **Art:** all graphics are original vector art drawn in code. There are no image files, so everything stays sharp at any zoom.
 - **Units:** each unit has its own sprite in its army's colour. Soldiers carry distinct gear (rifle, bazooka, ghillie hood and scoped rifle, hard hat and wrench), vehicles run on tracks or wheels, aircraft hover over a shadow, and ships sit in the water with a wake.
@@ -409,9 +410,9 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/ui/mapStore.ts` | Custom maps saved in the browser, plus map file import/export |
 | `src/game/camera.ts` | Zoom and scroll camera shared by the game and the editor |
 | `src/game/sprites.ts` | Unit art: a code-drawn vector sprite for every unit, in the owner's colour |
-| `src/game/cues.ts` | Named moments sounds hook into (`fire` and `impact` with the unit type, `explosion`, `footstep` with the terrain, `capture-hop`, `captured`, and `bridge-built/cracked/repaired/destroyed` with the unit that did it, if seen) |
-| `src/game/sound.ts` | Sound engine: makes each sound once when sound starts, plays it on its cue (volume, mute, voice limit); `FIRE_SOUNDS` says which unit makes which sound. Every sound plays at the same level (`SFX_LEVEL` in synth.ts) |
-| `src/game/synth.ts` | Sound recipes: each effect computed sample by sample (the Rifleman's and Engineer's, and infantry footsteps, so far). To give another unit a sound, add a recipe that ends with `finish()`, so it peaks at the same level as every other sound |
+| `src/game/cues.ts` | Named moments sounds hook into (`fire` and `impact` with the unit type, `explosion`, `footstep` with the terrain, `drive` with the unit type, `capture-hop`, `captured`, and `bridge-built/cracked/repaired/destroyed` with the unit that did it, if seen) |
+| `src/game/sound.ts` | Sound engine: makes each sound once when sound starts, plays it on its cue (volume, mute, voice limit); `FIRE_SOUNDS` says which unit makes which sound and `DRIVE_SOUNDS` which engine each vehicle has (loops fade in and out around a move). Every sound plays at the same level (`SFX_LEVEL` in synth.ts) |
+| `src/game/synth.ts` | Sound recipes: each effect computed sample by sample (the Rifleman's and Engineer's, infantry footsteps, and seamless one-second engine loops for vehicles, so far). To give another unit a sound, add a recipe that ends with `finish()`, so it peaks at the same level as every other sound |
 | `src/game/attackFx.ts` | Battle effects: muzzle flashes, tracers, shells, rockets, bombs and impacts (one small pool of reused images) |
 | `src/core/timing.ts` | How long animations take, and each unit's weapon style; the server paces CPU moves with the same numbers |
 | `src/game/render.ts` | Terrain, building and unit drawing shared by the game and the editor |

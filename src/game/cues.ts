@@ -16,6 +16,8 @@ export type Cue =
   | 'explosion'
   /** An infantry unit steps onto a tile (detail: its terrain, e.g. 'plain', 'bridge'). */
   | 'footstep'
+  /** A vehicle, aircraft or ship enters a tile (detail: its unit type, e.g. 'htank'). */
+  | 'drive'
   /**
    * A bridge was built, cracked, repaired or destroyed (detail: the type of the unit that
    * did it, when the player could see that unit; otherwise no detail).

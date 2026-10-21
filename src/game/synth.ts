@@ -306,6 +306,108 @@ export function stepWater(rate: number, seed: number) {
   });
 }
 
+// ---------------------------------------------------------------- vehicles
+// Engine loops for vehicles, aircraft and ships on the move. Each is one second long
+// and loops seamlessly (the engine fades it in and out around a move), so anything
+// rhythmic repeats a whole number of times per second. Unit types share a loop and
+// differ by playback speed (a Heavy Tank is a slower, deeper Light Tank).
+
+/** How long each loop is (seconds). */
+const LOOP_SECONDS = 1;
+
+/**
+ * A seamless loop filled by `voice(t, noise)`, soft-clipped and scaled to the shared peak.
+ * The noise repeats every loop and the clip is rendered twice, keeping the second lap:
+ * by then every filter has settled into the loop, so its end runs exactly into its start.
+ */
+function renderLoop(rate: number, seed: number, voice: (t: number, noise: number) => number): Float32Array {
+  const rand = seeded(seed);
+  const n = Math.floor(rate * LOOP_SECONDS);
+  const noise = Float32Array.from({ length: n }, () => rand() * 2 - 1);
+  const out = new Float32Array(n);
+  for (let i = 0; i < 2 * n; i++) {
+    const v = voice(i / rate, noise[i % n]);
+    if (i >= n) out[i - n] = Math.tanh(v * 1.3);
+  }
+  let max = 0;
+  for (let i = 0; i < n; i++) max = Math.max(max, Math.abs(out[i]));
+  for (let i = 0; i < n; i++) out[i] *= CLIP_PEAK / max; // (no end fade: it would dip at every loop)
+  return out;
+}
+
+/** Time since the last of `perSecond` evenly spaced beats (repeats exactly every loop). */
+const sinceBeat = (t: number, perSecond: number) => (t * perSecond - Math.floor(t * perSecond)) / perSecond;
+
+/** Tracked vehicles (tanks, carrier, artillery, flak): a diesel chug and the clank of the treads. */
+export function driveTreads(rate: number, seed: number) {
+  const rumble = band(30, 220, rate), chug = band(60, 400, rate), clank = band(1500, 5000, rate), squeal = band(2200, 3800, rate);
+  const r = seeded(seed + 21);
+  // Tread links slap down 10 times a second, each a little differently.
+  const links = Array.from({ length: 10 }, () => ({ gain: 0.6 + r() * 0.4, hz: 820 + r() * 260 }));
+  const fire = 30 + (seed % 2) * 4; // engine firing rate (whole number: loops cleanly)
+  return renderLoop(rate, seed, (t, n) => {
+    const df = sinceBeat(t, fire);
+    const engine = chug(n) * Math.exp(-df * 90) * 3.2 + Math.sin(2 * Math.PI * fire * 2 * t) * 0.25;
+    const k = Math.floor(t * 10) % 10, dl = sinceBeat(t, 10), link = links[k];
+    const slap = (clank(n) * 2.2 + Math.sin(2 * Math.PI * link.hz * dl) * 0.6) * Math.exp(-dl * 160) * link.gain;
+    const whine = squeal(n) * (0.5 + 0.5 * Math.sin(2 * Math.PI * 3 * t)) * 0.12;
+    return rumble(n) * 1.6 + engine + slap * 0.55 + whine;
+  });
+}
+
+/** Wheeled vehicles (scout car, rocket and missile trucks): a smoother engine and tire roar. */
+export function driveTires(rate: number, seed: number) {
+  const roar = band(120, 900, rate), hiss = band(1500, 4500, rate), chug = band(80, 500, rate);
+  const fire = 52 + (seed % 2) * 6;
+  return renderLoop(rate, seed, (t, n) => {
+    const df = sinceBeat(t, fire);
+    const engine = chug(n) * Math.exp(-df * 140) * 1.6
+      + (Math.sin(2 * Math.PI * fire * t) * 0.35 + Math.sin(2 * Math.PI * fire * 2 * t) * 0.2 + Math.sin(2 * Math.PI * fire * 3 * t) * 0.1);
+    // Tires hum on the road, swelling gently over bumps (twice a second).
+    const swell = 0.8 + 0.2 * Math.sin(2 * Math.PI * 2 * t + seed);
+    return engine + roar(n) * 1.3 * swell + hiss(n) * 0.18 * swell;
+  });
+}
+
+/** Jets (interceptor, bomber): a broad roar, an airy hiss, and a turbine whine. */
+export function flyJet(rate: number, seed: number) {
+  const roar = band(150, 1400, rate), hiss = band(3000, 9000, rate), low = band(40, 200, rate);
+  const whineHz = 2300 + (seed % 2) * 260;
+  let phase = 0;
+  return renderLoop(rate, seed, (t, n) => {
+    // The whine wavers slightly (2 times a second) so it doesn't sound like a test tone.
+    phase += (2 * Math.PI * whineHz * (1 + 0.012 * Math.sin(2 * Math.PI * 2 * t))) / rate;
+    const whine = Math.sin(phase) * 0.07 + Math.sin(phase * 1.5) * 0.035;
+    return roar(n) * 1.5 + hiss(n) * 0.5 + low(n) * 1.2 + whine;
+  });
+}
+
+/** Helicopters (gunship, airlift): the "wop" of the rotor blades over a turbine whine. */
+export function flyRotor(rate: number, seed: number) {
+  const wop = band(50, 450, rate), air = band(1500, 5000, rate);
+  const blades = 13 + (seed % 2); // blade passes per second
+  const whineHz = 1750 + (seed % 2) * 150;
+  return renderLoop(rate, seed, (t, n) => {
+    const d = sinceBeat(t, blades);
+    const chop = wop(n) * Math.min(1, d / 0.004) * Math.exp(-d * 55) * 5;
+    const swish = air(n) * (0.3 + Math.exp(-d * 30) * 0.7) * 0.25;
+    return chop + swish + Math.sin(2 * Math.PI * whineHz * t) * 0.05;
+  });
+}
+
+/** Ships (cruiser, battleship, lander): the wash of the bow wave over a low engine hum. */
+export function sail(rate: number, seed: number) {
+  const wash = band(150, 1100, rate), spray = band(1500, 5000, rate), hum = band(25, 120, rate);
+  const humHz = 36 + (seed % 2) * 4;
+  return renderLoop(rate, seed, (t, n) => {
+    // Waves rise and fall slowly (once and three times a second, so they loop cleanly).
+    const surge = 0.6 + 0.25 * Math.sin(2 * Math.PI * t + seed) + 0.15 * Math.sin(2 * Math.PI * 3 * t);
+    const sprayLevel = Math.max(0, Math.sin(2 * Math.PI * t + seed + 0.6));
+    return wash(n) * 1.8 * surge + spray(n) * 0.35 * sprayLevel * sprayLevel
+      + hum(n) * 1.4 + Math.sin(2 * Math.PI * humHz * t) * 0.18;
+  });
+}
+
 /** Every sound the game can play: its recipe and how many variants to make of it. */
 export const RECIPES = {
   'rifle-shot': { make: rifleShot, variants: 4 },
@@ -318,6 +420,11 @@ export const RECIPES = {
   'step-hard': { make: stepHard, variants: 4 },
   'step-bridge': { make: stepBridge, variants: 4 },
   'step-water': { make: stepWater, variants: 4 },
+  'drive-treads': { make: driveTreads, variants: 2 },
+  'drive-tires': { make: driveTires, variants: 2 },
+  'fly-jet': { make: flyJet, variants: 2 },
+  'fly-rotor': { make: flyRotor, variants: 2 },
+  'sail': { make: sail, variants: 2 },
 } satisfies Record<string, { make: (rate: number, seed: number) => Float32Array; variants: number }>;
 
 export type SoundName = keyof typeof RECIPES;
