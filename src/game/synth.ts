@@ -11,9 +11,10 @@ export const CLIP_PEAK = 0.9;
 
 /**
  * How loud every sound plays (before the player's volume slider). Set by ear on the
- * Rifleman: half, then 25% and 10% lower than first made (about -9.4 dB).
+ * Rifleman: half, then 25%, 10% and 15% lower than first made (about -10.8 dB).
+ * The music has its own level (MUSIC_LEVEL in sound.ts), so this doesn't move it.
  */
-export const SFX_LEVEL = 0.3375;
+export const SFX_LEVEL = 0.286875;
 
 /** Small, fast, repeatable random numbers (mulberry32), so each variant sounds the same every time. */
 export function seeded(seed: number): () => number {
