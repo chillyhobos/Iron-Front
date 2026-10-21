@@ -1,3 +1,5 @@
 # Keep Unix line endings (LF) in every text file, on Windows too, so files match
 # what's in the repository and on the Linux servers that host the game.
 * text=auto eol=lf
+# Windows batch files need Windows line endings (CRLF) to run reliably.
+*.bat text eol=crlf

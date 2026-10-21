@@ -4,7 +4,12 @@ An original turn-based 2D military tactics game for 2–6 players (free-for-all,
 
 **Play it now:** https://iron-front-r94w.onrender.com. It runs on a free server, so the first visit after a quiet spell can take about a minute to wake up.
 
-**Get the code** to run it or host it on your own PC: `git clone https://github.com/chillyhobos/Iron-Front.git`, or **Code → Download ZIP** on GitHub. You need [Node.js](https://nodejs.org) (LTS), then follow **Run it** below. To host online games for friends from your own PC, see **Playing over the internet** under Online play.
+**Host it from your own PC** (you and your friends play online, no server needed):
+1. Install [Node.js](https://nodejs.org) (the LTS version).
+2. On GitHub, click **Code → Download ZIP** and extract it, or run `git clone https://github.com/chillyhobos/Iron-Front.git`.
+3. **Windows:** double-click **Start Iron Front.bat**. **Mac / Linux:** open a terminal in the folder and run `npm run play`.
+
+It installs and builds the game the first time (a minute or two), starts it, and opens it in your browser. It then offers a free tunnel so friends anywhere can join, and prints the link to send them. Keep its window open while you play. More detail: **Hosting from your own PC** under Online play.
 
 **Art:** all graphics are original vector art drawn in code. There are no image files, so everything stays sharp at any zoom.
 - **Units:** each unit has its own sprite in its army's colour. Soldiers carry distinct gear (rifle, bazooka, ghillie hood and scoped rifle, hard hat and wrench), vehicles run on tracks or wheels, aircraft hover over a shadow, and ships sit in the water with a wake.
@@ -262,16 +267,18 @@ It listens on port 8787. The dev server forwards `/ws` to it, so players still o
   - When the player rejoins, they get every army back straight away, even mid-turn. The log notes each hand-over and return.
 - **Fog of war:** the server only sends each player what their army can see, so hidden units stay hidden even to someone reading the network traffic.
 
-**Playing over the internet:**
-- **Same Wi-Fi:** run `npm run build`, then `npm start`. The server then hosts the game itself and prints a "same network" address such as `http://192.168.0.51:8787`. Everyone opens that address. (Windows may ask to let Node through the firewall the first time.)
-- **Elsewhere, from your own PC:** keep `npm start` running and open a free Cloudflare tunnel in a second terminal (install `cloudflared` from Cloudflare first). It prints a `https://….trycloudflare.com` link that works from anywhere, online play included. The link changes each time.
+**Hosting from your own PC:** double-click **Start Iron Front.bat** (Windows) or run `npm run play` (Mac / Linux) in the game folder. It:
+- **Installs and builds** the game when needed: the first time, and again only after the game changes, such as when you download a newer version.
+- **Starts the game** at http://localhost:8787 and opens it in your browser.
+- **Prints a "same network" address** such as `http://192.168.0.51:8787` for friends on your Wi-Fi. Windows may ask once to let Node through the firewall; allow it on Private networks.
+- **Asks whether to open a tunnel** for friends anywhere else. Say **y** and it prints a `https://….trycloudflare.com` link to send them. The link changes each time. The tunnel uses Cloudflare's free `cloudflared` tool; if it isn't installed, the window tells you how (on Windows: `winget install --id Cloudflare.cloudflared`). Skip the question with `--tunnel` or `--no-tunnel`, for example `npm run play -- --tunnel`.
+- **Seals saved matches with your own private key**, made the first time and kept in your home folder (`.iron-front-save-secret`). Saves stay private, and still open after you update the game. Back that file up if you move to another PC.
 
-```bash
-cloudflared tunnel --url http://localhost:8787
-```
+Keep the window open while you play; closing it stops the game. Everyone plays through your PC, so it has to stay on and awake. Players only need a browser.
 
-- **Elsewhere, always on:** host it on Render for a permanent link (see **Hosting on Render** below).
-- **Saves when self-hosting:** without a key, your server seals saved matches with a development key that anyone with this code could open. To keep them private, start it with your own key, and use the same one every time. In PowerShell: `$env:SAVE_SECRET = "some long random text"; npm start`
+Doing it by hand instead: `npm install`, `npm run build`, then `npm start`, plus `cloudflared tunnel --url http://localhost:8787` in a second window for a tunnel. Set `SAVE_SECRET` yourself to keep saves private.
+
+**Always on, without your PC:** host it on Render for a permanent link (see **Hosting on Render** below).
 
 **Limits for now:**
 - Only the host can hand out stand-ins, so if the host is away the others have to wait for them.
@@ -398,6 +405,7 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/ui/hud.ts` | HTML side panel, menus, overlays |
 | `server/` | Online game server: rooms, join codes, turn checks (Node + WebSockets); `seal.ts` seals saved matches |
 | `render.yaml` | How Render builds and starts the server (see **Hosting on Render**) |
+| `Start Iron Front.bat`, `scripts/play.mjs` | One-step hosting from your own PC: install, build, start, tunnel (`npm run play`) |
 | `src/net/` | Online message format (`protocol.ts`) and the browser connection (`client.ts`) |
 | `src/core/view.ts` | What each player may see online under fog |
 
