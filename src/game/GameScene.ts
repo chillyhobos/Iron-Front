@@ -13,6 +13,7 @@ import {
 import { nextAiAction } from '../core/ai';
 import { canUsePower, commanderOf } from '../core/commanders';
 import type { Action, Command, Difficulty, GameEvent, GameState, Pos, Tile, Unit } from '../core/state';
+import type { UnitType } from '../core/data';
 import { controlLabel, escapeHtml, type Hud } from '../ui/hud';
 import { clearAutosave, downloadOnlineSave, downloadSave, writeAutosave } from '../ui/saves';
 import { forgetSession, type OnlineLink } from '../net/client';
@@ -52,6 +53,13 @@ export class GameScene extends Phaser.Scene {
   private fx!: AttackFx;
   /** An attack whose shots are flying or about to land: its result plays as a battle (hit, return fire). */
   private attackCtx: { attackerId: number; defenderId: number } | null = null;
+  /**
+   * The type of the unit whose action is being shown, when the player could see it
+   * (sounds use it, e.g. an Engineer blowing up a bridge). pendingActor: our own
+   * online action, until the server's answer is shown.
+   */
+  private actorType: UnitType | undefined;
+  private pendingActor: UnitType | undefined;
   private sprites = new Map<number, Phaser.GameObjects.Container>();
 
   private mode: Mode = 'locked';
@@ -124,7 +132,7 @@ export class GameScene extends Phaser.Scene {
     const next = this.serverQueue.shift();
     this.playingServer = !!next;
     if (!next) return;
-    const show = () => this.applyServer(next.state, next.events, () => this.nextFromServer());
+    const show = () => this.applyServer(next.state, next.events, () => this.nextFromServer(), next.anim?.unitType);
     // Running behind (a slow tab, or one that was hidden): skip animations to catch up.
     if (next.anim && !document.hidden && this.serverQueue.length < 3) this.animateMove(next.anim, show);
     else show();
@@ -164,7 +172,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Show a server update: a battle first if it was an attack, then the new state. */
-  private applyServer(state: GameState, events: GameEvent[], done: () => void) {
+  private applyServer(state: GameState, events: GameEvent[], done: () => void, actorType?: UnitType) {
+    // Who acted: from the move (someone else's), or our own action the server is answering.
+    this.actorType = actorType ?? this.pendingActor;
+    this.pendingActor = undefined;
     this.s = state;
     this.sel = null;
     this.pending = null;
@@ -175,6 +186,7 @@ export class GameScene extends Phaser.Scene {
       this.mode = this.myTurn() ? 'idle' : 'locked'; // (turn and game-over events adjust this)
       this.refresh();
       this.handleEvents(events.filter(e => !shown.has(e)));
+      this.actorType = undefined;
       done();
     });
   }
@@ -650,6 +662,7 @@ export class GameScene extends Phaser.Scene {
     if (this.online) {
       if (!this.myTurn()) return null;
       this.mode = 'locked'; // until the server answers
+      this.pendingActor = action.type === 'act' ? unitById(this.s, action.unitId)?.type : undefined;
       this.online.send(action);
       return null;
     }
@@ -660,6 +673,7 @@ export class GameScene extends Phaser.Scene {
     const team = currentPlayer(this.s).team;
     const seenBefore = this.s.fog && undoable ? this.seenEnemies(team) : null;
 
+    this.actorType = action.type === 'act' ? unitById(this.s, action.unitId)?.type : undefined;
     const res = applyAction(this.s, action);
     if (!res.ok) this.s.log.push(`⚠ ${res.error}`);
     if (res.ok && before) {
@@ -679,6 +693,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (!res.ok) {
       this.attackCtx = null;
+      this.actorType = undefined;
       if (this.mode === 'animating') this.mode = 'idle';
       this.refresh();
       return null;
@@ -687,6 +702,7 @@ export class GameScene extends Phaser.Scene {
       if (this.mode === 'animating') this.mode = 'idle';
       this.refresh();
       this.handleEvents(res.events.filter(e => !shown.has(e)));
+      this.actorType = undefined;
       onShown?.(res.events);
     });
     return res.events;
@@ -791,6 +807,7 @@ export class GameScene extends Phaser.Scene {
       this.floatText(e.x, e.y, 'Captured!', '#ffffff');
     }
     if (e.kind === 'bridge') {
+      cue(`bridge-${e.change}`, this.actorType);
       if (e.change === 'destroyed') this.explode(e.x, e.y);
       const text = { built: 'Bridge built!', repaired: 'Repaired!', cracked: 'Cracked!', destroyed: 'Bridge down!' }[e.change];
       this.floatText(e.x, e.y, text, e.change === 'built' || e.change === 'repaired' ? '#ffffff' : '#ff7b7b');

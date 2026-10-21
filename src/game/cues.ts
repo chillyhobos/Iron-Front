@@ -13,7 +13,12 @@ export type Cue =
   /** A shot lands (detail: the firing unit's type). */
   | 'impact'
   /** A unit is destroyed. */
-  | 'explosion';
+  | 'explosion'
+  /**
+   * A bridge was built, cracked, repaired or destroyed (detail: the type of the unit that
+   * did it, when the player could see that unit; otherwise no detail).
+   */
+  | 'bridge-built' | 'bridge-cracked' | 'bridge-repaired' | 'bridge-destroyed';
 
 type Listener = (cue: Cue, detail?: string) => void;
 const listeners = new Set<Listener>();

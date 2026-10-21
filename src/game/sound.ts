@@ -16,6 +16,7 @@ const MAX_VOICES = 16;
 /** Which sound each unit's shots make. Units not listed are silent for now. */
 const FIRE_SOUNDS: Partial<Record<string, SoundName>> = {
   rifle: 'rifle-shot',
+  engineer: 'smg-shot',
 };
 
 type Prefs = { volume: number; muted: boolean };
@@ -112,6 +113,9 @@ class SoundEngine {
       const name = FIRE_SOUNDS[detail];
       if (name) this.play(name);
     }
+    // Engineers: blowing up a bridge, and fixing one (only Engineers repair bridges).
+    if (c === 'bridge-destroyed' && detail === 'engineer') this.play('demolition');
+    if (c === 'bridge-repaired') this.play('bridge-repair');
   }
 
   /** Play one of a sound's variants, slightly varied so repeats don't sound robotic. */
