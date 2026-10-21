@@ -5,10 +5,12 @@
 import type { MapDef, MapMode } from '../core/maps';
 import type { Action, Difficulty, GameEvent, GameState } from '../core/state';
 import type { UnitSetData } from '../core/unitSets';
+import type { MoveAnim } from '../core/view';
 
 /** Join codes: 4 letters, no look-alikes (no I/O). */
 export const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const CODE_LENGTH = 4;
+
 
 export interface SeatSetup {
   name: string;
@@ -113,8 +115,12 @@ export type ServerMessage =
   /** You have a seat: keep the token to rejoin later. */
   | { t: 'seat'; code: string; seat: number; token: string }
   | { t: 'lobby'; lobby: LobbyInfo }
-  /** The game as you may see it, plus what just happened that you could see. */
-  | { t: 'state'; state: GameState; events: GameEvent[]; online: boolean[]; seats: SeatStatus[]; host: number }
+  /**
+   * The game as you may see it, plus what just happened that you could see. `anim` is
+   * the move that led here (as much as you could see), to animate before showing it;
+   * never sent for your own moves, which you already watched.
+   */
+  | { t: 'state'; state: GameState; events: GameEvent[]; online: boolean[]; seats: SeatStatus[]; host: number; anim?: MoveAnim }
   /** Someone came or went. online[i]: army i can be played right now (by its person, a CPU or a stand-in). */
   | { t: 'presence'; online: boolean[]; seats: SeatStatus[] }
   | { t: 'saveFile'; file: OnlineSaveFile }

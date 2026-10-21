@@ -14,7 +14,8 @@ import { applyUnitSet, upgradeUnitSet, validateUnitSet, type UnitSetData } from 
 import { nextAiAction } from '../src/core/ai';
 import { COMMANDERS } from '../src/core/commanders';
 import { PLAYER_COLORS } from '../src/core/data';
-import { playerView, visibleEvents } from '../src/core/view';
+import { actionMove, playerView, visibleEvents, visibleMove, type MoveAnim } from '../src/core/view';
+import { animMs, counterMs } from '../src/core/timing';
 import { checkMap } from '../src/core/mapTools';
 import { seal, unseal } from './seal';
 import type { Action, Difficulty, GameEvent, GameState } from '../src/core/state';
@@ -463,20 +464,31 @@ export class Rooms {
     room.touched = this.now();
     applyUnitSet(room.unitSet); // several rooms can use different unit sets
     const before = JSON.parse(JSON.stringify(s)) as GameState;
+    const move = actionMove(before, action);
     const res = applyAction(s, action);
     if (!res.ok) {
       conn.send({ t: 'error', message: res.error });
       return this.sendState(room, conn.seat, []);
     }
-    room.seats.forEach((_, i) => this.sendState(room, i, visibleEvents(before, s, res.events, i)));
+    this.broadcastAction(room, before, res.events, move, conn.seat);
     this.runCpu(room);
   }
 
+  /** Everyone gets the new game as they may see it, with the move to animate (except whoever made it). */
+  private broadcastAction(room: Room, before: GameState, events: GameEvent[], move: MoveAnim | null, actor: number | null) {
+    const s = room.state!;
+    room.seats.forEach((_, i) => {
+      const anim = move && i !== actor ? visibleMove(before, s, move, i) : null;
+      this.sendState(room, i, visibleEvents(before, s, events, i), anim);
+    });
+  }
+
   /**
-   * Play CPU turns, one action per step so everyone can follow along. Pauses while no
-   * person is connected (resuming starts it again) and stops when it's a person's turn.
+   * Play CPU turns, one action per step so everyone can follow along: after each move
+   * the next waits until browsers have finished animating it. Pauses while no person is
+   * connected (resuming starts it again) and stops when it's a person's turn.
    */
-  private runCpu(room: Room) {
+  private runCpu(room: Room, delay = CPU_STEP_MS) {
     if (room.cpuBusy || !this.cpuShouldMove(room)) return;
     room.cpuBusy = true;
     this.schedule(() => {
@@ -485,13 +497,20 @@ export class Rooms {
       const s = room.state!;
       applyUnitSet(room.unitSet);
       const before = JSON.parse(JSON.stringify(s)) as GameState;
-      let res = applyAction(s, nextAiAction(s, Math.random));
-      if (!res.ok) res = applyAction(s, { type: 'endTurn' }); // never let a confused CPU stall the game
+      const action = nextAiAction(s, Math.random);
+      let move = actionMove(before, action);
+      let res = applyAction(s, action);
+      if (!res.ok) {
+        // Never let a confused CPU stall the game.
+        res = applyAction(s, { type: 'endTurn' });
+        move = null;
+      }
       if (!res.ok) return; // (can't happen: ending the turn is always allowed)
       room.touched = this.now();
-      room.seats.forEach((_, i) => this.sendState(room, i, visibleEvents(before, s, res.events, i)));
-      this.runCpu(room);
-    }, CPU_STEP_MS);
+      this.broadcastAction(room, before, res.events, move, null);
+      // Wait for the move, the attack, and any return fire to finish playing on screens.
+      this.runCpu(room, CPU_STEP_MS + animMs(move) + counterMs(before, move, res.events));
+    }, delay);
   }
 
   private cpuShouldMove(room: Room) {
@@ -619,12 +638,13 @@ export class Rooms {
     }
   }
 
-  private sendState(room: Room, seatNo: number, events: GameEvent[]) {
+  private sendState(room: Room, seatNo: number, events: GameEvent[], anim: MoveAnim | null = null) {
     const conn = room.seats[seatNo]?.conn;
     if (!conn || !room.state) return;
     conn.send({
       t: 'state', state: playerView(room.state, seatNo), events, online: this.online(room), seats: this.statusOf(room),
       host: room.seats.findIndex(s => s?.token === room.hostToken),
+      ...(anim ? { anim } : {}),
     });
   }
 

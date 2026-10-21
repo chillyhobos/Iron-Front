@@ -17,8 +17,12 @@ import { controlLabel, escapeHtml, type Hud } from '../ui/hud';
 import { clearAutosave, downloadOnlineSave, downloadSave, writeAutosave } from '../ui/saves';
 import { forgetSession, type OnlineLink } from '../net/client';
 import type { SeatStatus } from '../net/protocol';
+import type { MoveAnim } from '../core/view';
+import { ANIM_CAPTURE_MS, ANIM_STEP_MS, animMs, COUNTER_PAUSE_MS } from '../core/timing';
+import { AttackFx } from './attackFx';
 import { drawTerrain, isLowFuel, makeUnitSprite, TILE } from './render';
 import { MapCamera } from './camera';
+import { cue } from './cues';
 
 export { TILE };
 const T = TILE;
@@ -44,6 +48,9 @@ export class GameScene extends Phaser.Scene {
   private overlayG!: Phaser.GameObjects.Graphics;
   private cursorG!: Phaser.GameObjects.Graphics;
   private unitLayer!: Phaser.GameObjects.Container;
+  private fx!: AttackFx;
+  /** An attack whose shots are flying or about to land: its result plays as a battle (hit, return fire). */
+  private attackCtx: { attackerId: number; defenderId: number } | null = null;
   private sprites = new Map<number, Phaser.GameObjects.Container>();
 
   private mode: Mode = 'locked';
@@ -79,6 +86,9 @@ export class GameScene extends Phaser.Scene {
   /** Online play: the link to the game server (null = hot-seat on this device). */
   private online: OnlineLink | null = null;
   private onlineStartEvents: GameEvent[] = [];
+  /** Online: server updates waiting to be shown, and whether one is playing now. */
+  private serverQueue: Array<{ state: GameState; events: GameEvent[]; anim?: MoveAnim }> = [];
+  private playingServer = false;
 
   constructor() {
     super('game');
@@ -99,16 +109,117 @@ export class GameScene extends Phaser.Scene {
     return this.s.current === this.online.seat || this.s.players[this.s.current]?.controller === this.online.seat;
   }
 
-  /** Online: the server sent a new state (after our move, the opponent's, or a reconnect). */
-  private fromServer(state: GameState, events: GameEvent[]) {
+  /**
+   * Online: the server sent a new state (after our move, someone else's, or a reconnect).
+   * Updates play one at a time, in order: first the move that led there (a unit walking
+   * its path, its target flashing), then the new state with its hits and explosions.
+   */
+  private fromServer(state: GameState, events: GameEvent[], anim?: MoveAnim) {
+    this.serverQueue.push({ state, events, anim });
+    if (!this.playingServer) this.nextFromServer();
+  }
+
+  private nextFromServer() {
+    const next = this.serverQueue.shift();
+    this.playingServer = !!next;
+    if (!next) return;
+    const show = () => this.applyServer(next.state, next.events, () => this.nextFromServer());
+    // Running behind (a slow tab, or one that was hidden): skip animations to catch up.
+    if (next.anim && !document.hidden && this.serverQueue.length < 3) this.animateMove(next.anim, show);
+    else show();
+  }
+
+  /** Someone else's move, as the server described it: walk the unit along its path, then it fires or hops. */
+  private animateMove(anim: MoveAnim, onDone: () => void) {
+    const sprite = this.sprites.get(anim.unitId);
+    // If the browser isn't drawing frames (window covered, tab in the background) the tween
+    // never ends; don't let that hold up the game: show the result after a while anyway.
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(watchdog);
+      onDone();
+    };
+    const watchdog = window.setTimeout(() => {
+      if (sprite) this.tweens.killTweensOf(sprite);
+      done();
+    }, animMs(anim) + 1000);
+    const afterMove = () => {
+      if (anim.capture) return this.captureHop(anim.unitId, done);
+      const target = anim.targetId !== undefined ? unitById(this.s, anim.targetId) : undefined;
+      if (!target || !this.sprites.has(target.id)) return done();
+      this.attackCtx = { attackerId: anim.unitId, defenderId: target.id };
+      this.fireAt(anim.unitId, target, done);
+    };
+    if (!sprite || anim.path.length <= 1) return afterMove();
+    const end = anim.path[anim.path.length - 1];
+    this.camera.ensureVisible(end.x * T + T / 2, end.y * T + T / 2);
+    this.tweens.chain({
+      targets: sprite,
+      tweens: anim.path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ANIM_STEP_MS })),
+      onComplete: afterMove,
+    });
+  }
+
+  /** Show a server update: a battle first if it was an attack, then the new state. */
+  private applyServer(state: GameState, events: GameEvent[], done: () => void) {
     this.s = state;
     this.sel = null;
     this.pending = null;
     this.inspect = null;
     this.hud.hideActionMenu();
-    if (!events.some(e => e.kind === 'turn' || e.kind === 'gameover')) this.mode = this.myTurn() ? 'idle' : 'locked';
-    this.refresh();
-    this.handleEvents(events);
+    this.mode = 'animating';
+    this.resolveBattle(events, shown => {
+      this.mode = this.myTurn() ? 'idle' : 'locked'; // (turn and game-over events adjust this)
+      this.refresh();
+      this.handleEvents(events.filter(e => !shown.has(e)));
+      done();
+    });
+  }
+
+  // ------------------------------------------------------------ battles
+
+  /** A unit fires its weapon at a tile; done when the shots land. Instant if it can't be seen. */
+  private fireAt(attackerId: number, at: Pos, done: () => void) {
+    const u = unitById(this.s, attackerId);
+    const sprite = this.sprites.get(attackerId);
+    if (!u || !sprite || document.hidden) return done();
+    const to = { x: at.x * T + T / 2, y: at.y * T + T / 2 };
+    this.camera.ensureVisible(to.x, to.y);
+    this.fx.fire(u.type, { x: sprite.x, y: sprite.y }, to, sprite, done);
+  }
+
+  /**
+   * After an attack's shots land (attackCtx set) and its result is known: show the hit on
+   * the defender, and if it survived and fired back, play its shots and then the hit on
+   * the attacker. The map isn't redrawn until the end, so a unit destroyed by return fire
+   * stays on screen until its explosion. Reports the events it already showed.
+   */
+  private resolveBattle(events: GameEvent[], done: (shown: Set<GameEvent>) => void) {
+    const ctx = this.attackCtx;
+    this.attackCtx = null;
+    const shown = new Set<GameEvent>();
+    if (!ctx || document.hidden) return done(shown);
+    const hitsOn = (id: number) => events.filter(e => (e.kind === 'damage' || e.kind === 'destroyed') && e.unitId === id);
+    const onDefender = hitsOn(ctx.defenderId);
+    if (!onDefender.length || !this.sprites.has(ctx.defenderId)) return done(shown);
+    this.showHits(onDefender, shown);
+    const onAttacker = hitsOn(ctx.attackerId);
+    const firesBack = onAttacker.length > 0 && !!unitById(this.s, ctx.defenderId) && this.sprites.has(ctx.attackerId);
+    if (!firesBack) return done(shown);
+    const at = onAttacker[0] as Extract<GameEvent, { kind: 'damage' }>;
+    this.later(COUNTER_PAUSE_MS, () => this.fireAt(ctx.defenderId, at, () => {
+      this.showHits(onAttacker, shown);
+      done(shown);
+    }));
+  }
+
+  private showHits(hits: GameEvent[], shown: Set<GameEvent>) {
+    for (const e of hits) {
+      shown.add(e);
+      this.showEvent(e);
+    }
   }
 
   create() {
@@ -116,6 +227,7 @@ export class GameScene extends Phaser.Scene {
     this.fogG = this.add.graphics();
     this.overlayG = this.add.graphics();
     this.unitLayer = this.add.container();
+    this.fx = new AttackFx(this, this.add.container(), T);
     this.cursorG = this.add.graphics();
 
     this.input.mouse?.disableContextMenu();
@@ -147,7 +259,7 @@ export class GameScene extends Phaser.Scene {
         downloadOnlineSave(file);
         this.hud.flashBanner('Match saved: keep the file and use Resume a saved match to carry on', 0x3fa34d, 3500);
       });
-      link.onState((state, evs) => this.fromServer(state, evs));
+      link.onState((state, evs, anim) => this.fromServer(state, evs, anim));
       link.onPresence((on, seats) => this.showPresence(on, seats));
       link.onError(message => {
         this.hud.showBanner(`⚠ ${message}`, 0xd94848);
@@ -469,12 +581,69 @@ export class GameScene extends Phaser.Scene {
     this.hud.hideActionMenu();
     this.sel = null;
     this.pending = null;
-    this.mode = 'idle';
-    this.submit(action);
+    if (command.kind === 'attack') {
+      // Attacking: the unit fires first, then the hit (and any return fire) plays out
+      // (online, others see the same shots when the move reaches them).
+      this.mode = 'animating';
+      this.attackCtx = { attackerId: action.unitId, defenderId: command.targetId };
+      this.fireAt(action.unitId, unitById(this.s, command.targetId)!, () => this.submit(action));
+      return;
+    }
+    if (command.kind !== 'capture') {
+      this.mode = 'idle';
+      this.submit(action);
+      return;
+    }
+    // Capturing: the unit hops on the building first, then the capture happens
+    // (online, others see the same hop when the move reaches them).
+    this.mode = 'animating';
+    this.captureHop(action.unitId, () => {
+      this.mode = 'idle';
+      this.submit(action);
+    });
+  }
+
+  /**
+   * The capture hop: the unit jumps twice on its building, in ANIM_CAPTURE_MS, the same
+   * everywhere (the server paces CPU moves by it). Each landing is a cue for sound.
+   */
+  private captureHop(unitId: number, done: () => void) {
+    const sprite = this.sprites.get(unitId);
+    if (!sprite || document.hidden) return done();
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      window.clearTimeout(fallback);
+      this.tweens.killTweensOf(sprite);
+      sprite.y = groundY;
+      done();
+    };
+    // If the browser stops drawing (window covered), don't wait for the tween forever.
+    const fallback = window.setTimeout(finish, ANIM_CAPTURE_MS + 500);
+    const groundY = sprite.y;
+    this.tweens.add({
+      targets: sprite,
+      y: groundY - T * 0.3,
+      duration: ANIM_CAPTURE_MS / 4,
+      ease: 'Quad.Out',
+      yoyo: true,
+      repeat: 1,
+      onRepeat: () => cue('capture-hop'),
+      onComplete: () => {
+        cue('capture-hop');
+        finish();
+      },
+    });
   }
 
   /** Send an action to the rules engine — or, online, to the server (its answer arrives in fromServer). */
-  private submit(action: Action): GameEvent[] | null {
+  /**
+   * Send an action to the rules engine (or, online, the server). Offline, an attack's
+   * result plays as a battle before the map is redrawn; onShown runs once everything is
+   * on screen. Returns the events (null if refused, or online).
+   */
+  private submit(action: Action, onShown?: (events: GameEvent[]) => void): GameEvent[] | null {
     if (this.online) {
       if (!this.myTurn()) return null;
       this.mode = 'locked'; // until the server answers
@@ -505,9 +674,18 @@ export class GameScene extends Phaser.Scene {
       if (this.s.winnerTeam !== null) clearAutosave();
       else writeAutosave(this.s);
     }
-    this.refresh();
-    if (!res.ok) return null;
-    this.handleEvents(res.events);
+    if (!res.ok) {
+      this.attackCtx = null;
+      if (this.mode === 'animating') this.mode = 'idle';
+      this.refresh();
+      return null;
+    }
+    this.resolveBattle(res.events, shown => {
+      if (this.mode === 'animating') this.mode = 'idle';
+      this.refresh();
+      this.handleEvents(res.events.filter(e => !shown.has(e)));
+      onShown?.(res.events);
+    });
     return res.events;
   }
 
@@ -552,9 +730,11 @@ export class GameScene extends Phaser.Scene {
     const action = nextAiAction(this.s);
 
     const finish = () => {
-      const events = this.submit(action) ?? this.submit({ type: 'endTurn' }); // never get stuck on a bad move
-      const turnOver = !events || events.some(e => e.kind === 'turn' || e.kind === 'gameover');
-      if (!turnOver) this.later(AI_DELAY, () => this.aiStep());
+      // The next step waits until this one (and any battle it starts) is on screen.
+      const next = (events: GameEvent[]) => {
+        if (!events.some(e => e.kind === 'turn' || e.kind === 'gameover')) this.later(AI_DELAY, () => this.aiStep());
+      };
+      if (!this.submit(action, next)) this.submit({ type: 'endTurn' }, next); // never get stuck on a bad move
     };
 
     if (action.type !== 'act') return finish();
@@ -564,13 +744,17 @@ export class GameScene extends Phaser.Scene {
     const path = fullPath.slice(0, walkPath(this.s, u, fullPath).stop + 1);
     const sprite = this.sprites.get(u.id)!;
     const afterMove = () => {
+      // Capturing (and not stopped short by an ambush): hop on the building, if the viewer can see it.
+      if (action.command.kind === 'capture') {
+        const there = path.length === Math.max(1, fullPath.length);
+        return there && this.seesTile(end.x, end.y) ? this.captureHop(u.id, finish) : finish();
+      }
       if (action.command.kind !== 'attack') return finish();
-      // Flash the target so players can see what's being attacked (if they can see it).
+      // Fire at the target (if the viewer can see it); the hit and any return fire follow.
       const t = unitById(this.s, action.command.targetId)!;
       if (!this.seesUnit(t)) return finish();
-      this.camera.ensureVisible(t.x * T + T / 2, t.y * T + T / 2);
-      this.overlayG.clear().fillStyle(0xff3030, 0.6).fillRect(t.x * T, t.y * T, T, T);
-      this.later(AI_DELAY, finish);
+      this.attackCtx = { attackerId: u.id, defenderId: t.id };
+      this.fireAt(u.id, t, finish);
     };
     // Don't animate moves the viewer can't see (fog of war).
     const end = path[path.length - 1];
@@ -580,7 +764,7 @@ export class GameScene extends Phaser.Scene {
     this.camera.ensureVisible(end.x * T + T / 2, end.y * T + T / 2);
     this.tweens.chain({
       targets: sprite,
-      tweens: path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: 90 })),
+      tweens: path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ANIM_STEP_MS })),
       onComplete: afterMove,
     });
   }
@@ -588,22 +772,35 @@ export class GameScene extends Phaser.Scene {
   private handleEvents(events: GameEvent[]) {
     for (const e of events) {
       if (e.kind === 'power') this.announcePower(e.player);
-      if (e.kind === 'turn' || e.kind === 'eliminated' || e.kind === 'gameover' || e.kind === 'power') continue;
-      if (!this.seesTile(e.x, e.y)) continue; // happened in the fog
-      if (e.kind === 'damage' && e.amount > 0) this.floatText(e.x, e.y, `-${e.amount}%`, '#ffdd55');
-      if (e.kind === 'destroyed') this.explode(e.x, e.y);
-      if (e.kind === 'captured') this.floatText(e.x, e.y, 'Captured!', '#ffffff');
-      if (e.kind === 'bridge') {
-        if (e.change === 'destroyed') this.explode(e.x, e.y);
-        const text = { built: 'Bridge built!', repaired: 'Repaired!', cracked: 'Cracked!', destroyed: 'Bridge down!' }[e.change];
-        this.floatText(e.x, e.y, text, e.change === 'built' || e.change === 'repaired' ? '#ffffff' : '#ff7b7b');
-      }
-      if (e.kind === 'trapped') this.floatText(e.x, e.y, 'Ambush!', '#ff7b7b');
-      if (e.kind === 'crashed') {
-        this.explode(e.x, e.y);
-        this.floatText(e.x, e.y, 'Out of fuel!', '#ff7b7b');
-      }
+      this.showEvent(e);
     }
+    this.handleTurnEvents(events);
+  }
+
+  /** The on-screen effect of one event on the map (damage numbers, explosions, captures...). */
+  private showEvent(e: GameEvent) {
+    if (e.kind === 'turn' || e.kind === 'eliminated' || e.kind === 'gameover' || e.kind === 'power') return;
+    if (!this.seesTile(e.x, e.y)) return; // happened in the fog
+    if (e.kind === 'damage' && e.amount > 0) this.floatText(e.x, e.y, `-${e.amount}%`, '#ffdd55');
+    if (e.kind === 'destroyed') this.explode(e.x, e.y);
+    if (e.kind === 'captured') {
+      cue('captured');
+      this.floatText(e.x, e.y, 'Captured!', '#ffffff');
+    }
+    if (e.kind === 'bridge') {
+      if (e.change === 'destroyed') this.explode(e.x, e.y);
+      const text = { built: 'Bridge built!', repaired: 'Repaired!', cracked: 'Cracked!', destroyed: 'Bridge down!' }[e.change];
+      this.floatText(e.x, e.y, text, e.change === 'built' || e.change === 'repaired' ? '#ffffff' : '#ff7b7b');
+    }
+    if (e.kind === 'trapped') this.floatText(e.x, e.y, 'Ambush!', '#ff7b7b');
+    if (e.kind === 'crashed') {
+      this.explode(e.x, e.y);
+      this.floatText(e.x, e.y, 'Out of fuel!', '#ff7b7b');
+    }
+  }
+
+  /** Game over, or whose turn it is now. */
+  private handleTurnEvents(events: GameEvent[]) {
     const over = events.find(e => e.kind === 'gameover');
     if (over && over.kind === 'gameover') {
       const names = this.s.players.filter(p => p.team === over.team).map(p => p.name).join(' & ');
@@ -897,6 +1094,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private explode(x: number, y: number) {
+    cue('explosion');
     const boom = this.add.circle(x * T + T / 2, y * T + T / 2, 6, 0xffa020).setDepth(9);
     this.tweens.add({ targets: boom, scale: 4, alpha: 0, duration: 450, onComplete: () => boom.destroy() });
     this.cameras.main.shake(150, 0.004);

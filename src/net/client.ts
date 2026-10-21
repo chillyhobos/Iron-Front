@@ -2,6 +2,7 @@
 // seat (code + token) so a refresh can rejoin the game.
 
 import type { Action, Difficulty, GameEvent, GameState } from '../core/state';
+import type { MoveAnim } from '../core/view';
 import type { ClientMessage, LobbyInfo, OnlineSaveFile, SeatStatus, ServerMessage, StandIn } from './protocol';
 
 const SESSION_KEY = 'iron-front.online';
@@ -39,7 +40,8 @@ export interface OnlineLink {
   seat: number;
   code: string;
   send(action: Action): void;
-  onState(cb: (state: GameState, events: GameEvent[]) => void): void;
+  /** A new state from the server; anim = the move that led to it, to animate first (if any). */
+  onState(cb: (state: GameState, events: GameEvent[], anim?: MoveAnim) => void): void;
   /** Seat of the host (who can hand absent players' armies to stand-ins). */
   host: number;
   /** Who can play each army right now, and how each seat is played. Called at once with the latest. */
@@ -66,7 +68,7 @@ export class OnlineClient {
   private session: OnlineSession | null = null;
   private started = false;
   private queue: ClientMessage[] = [];
-  private stateCb: (state: GameState, events: GameEvent[]) => void = () => {};
+  private stateCb: (state: GameState, events: GameEvent[], anim?: MoveAnim) => void = () => {};
   private presenceCb: (online: boolean[], seats: SeatStatus[]) => void = () => {};
   private lastPresence: [boolean[], SeatStatus[]] = [[], []];
   private saveFileCb: (file: OnlineSaveFile) => void = () => {};
@@ -151,7 +153,7 @@ export class OnlineClient {
           this.started = true;
           return this.events.start(msg.state, msg.events, this.link());
         }
-        return this.stateCb(msg.state, msg.events);
+        return this.stateCb(msg.state, msg.events, msg.anim);
       case 'presence':
         return this.presence(msg.online, msg.seats);
       case 'saveFile':

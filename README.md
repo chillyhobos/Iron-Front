@@ -11,6 +11,8 @@ An original turn-based 2D military tactics game for 2–6 players (free-for-all,
 
 It installs and builds the game the first time (a minute or two), starts it, and opens it in your browser. It then offers a free tunnel so friends anywhere can join, and prints the link to send them. Keep its window open while you play. More detail: **Hosting from your own PC** under Online play.
 
+**Battles:** every unit that can attack fires its own weapon. Rifles fire tracer bursts, snipers a single fast shot, bazookas a rocket, and tanks a shell with recoil. Machine guns rattle off rapid tracers, artillery and battleships lob arcing shells, rocket launchers fire a salvo, missile launchers send missiles up steeply, gunships fire straight missiles and bombers drop bombs. The damage shows when the shots land. If the defender survives and can hit back, it fires its own weapon, and then the attacker's damage shows. The map updates only after that, so a unit destroyed by return fire stays on screen until its explosion. Battles look and time the same offline and online, for every player, and are built to stay smooth (pooled effects from two tiny generated shapes).
+
 **Art:** all graphics are original vector art drawn in code. There are no image files, so everything stays sharp at any zoom.
 - **Units:** each unit has its own sprite in its army's colour. Soldiers carry distinct gear (rifle, bazooka, ghillie hood and scoped rifle, hard hat and wrench), vehicles run on tracks or wheels, aircraft hover over a shadow, and ships sit in the water with a wake.
 - **Facing:** armies whose HQ is on the right half of the map face left, toward the enemy.
@@ -42,7 +44,7 @@ The dev server checks for file changes on a short timer (`vite.config.ts`), beca
 - **Build:** click one of your factories (ground units), ports (ships) or airfields (aircraft) to buy units. New units can act next turn.
 - **Move:** click a unit; blue tiles are where it can go and red outlines are enemies it can reach. Click a tile, then pick **Attack**, **Capture** or **Wait**.
 - **Inspect:** click an enemy unit to see its movement (orange) and threat range (red).
-- **Capture:** Riflemen and Bazookas capture cities, factories and HQs (20 points; each turn subtracts the unit's HP).
+- **Capture:** Riflemen and Bazookas capture cities, factories and HQs (20 points; each turn subtracts the unit's HP). A capturing unit hops twice on the building, the same for every player, offline or online.
 - **Income:** +1,000 per property at the start of your turn (3 vs 3 cities pay 800). Units repair 2 HP for a fee at your own buildings of the right kind: ground units at cities, factories and HQs, ships at ports, aircraft at airfields.
 - **Win:** capture an enemy HQ or destroy all their units. The last team standing wins.
 - **Camera:** scroll the mouse wheel to zoom toward the cursor, or use the **− / + / Fit** buttons at the top right of the map. Drag the map (or use the arrow keys or WASD) to scroll. A short click still selects. Each turn starts centered on the current player's army, and the camera follows CPU moves. Small maps show in full; big maps (up to 40×40) open zoomed in to a readable size.
@@ -249,7 +251,8 @@ It listens on port 8787. The dev server forwards `/ws` to it, so players still o
 
 **Playing:**
 - You can only act on your own turn, or the turn of a teammate's army you play (the banner names it). On anyone else's turn you see "Waiting for …" (marked "ally" for a teammate).
-- **CPU players** run on the server and play one action at a time, so everyone can follow. They pause while no person is connected and carry on when someone rejoins.
+- **Everyone's moves are animated**, as in a game on one computer: units slide along their path, then attack (see **Battles**) or hop twice on a building they capture. Under fog you only see the part you could see: a unit seen walking into the fog vanishes where it leaves your sight, and units you couldn't see just appear. If your tab was in the background, it catches up at once instead of replaying everything.
+- **CPU players** run on the server and play one action at a time, waiting for each move's animation, so everyone can follow. They pause while no person is connected and carry on when someone rejoins.
 - **Teams:** allies share vision under fog and can see each other's funds. Turns are not shared: each ally plays their own army.
 - The side panel shows the game code, or which players are disconnected.
 - A beaten player can keep watching until the game ends.
@@ -283,7 +286,6 @@ Doing it by hand instead: `npm install`, `npm run build`, then `npm start`, plus
 **Limits for now:**
 - Only the host can hand out stand-ins, so if the host is away the others have to wait for them.
 - No undo online. A save is only taken when the host clicks Save: nothing saves by itself.
-- The other player's moves appear instantly instead of being animated.
 - Games live in the server's memory: restarting the server ends them unless the host saved first. Unfinished games are cleared after 6 hours without activity.
 - Two tabs in the same browser share one Rejoin slot, so test with different browsers or private windows.
 
@@ -400,6 +402,9 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/ui/mapStore.ts` | Custom maps saved in the browser, plus map file import/export |
 | `src/game/camera.ts` | Zoom and scroll camera shared by the game and the editor |
 | `src/game/sprites.ts` | Unit art: a code-drawn vector sprite for every unit, in the owner's colour |
+| `src/game/cues.ts` | Named moments for sound effects to hook into later (`fire` and `impact` with the weapon style, `explosion`, `capture-hop`, `captured`); nothing plays sounds yet |
+| `src/game/attackFx.ts` | Battle effects: muzzle flashes, tracers, shells, rockets, bombs and impacts (one small pool of reused images) |
+| `src/core/timing.ts` | How long animations take, and each unit's weapon style; the server paces CPU moves with the same numbers |
 | `src/game/render.ts` | Terrain, building and unit drawing shared by the game and the editor |
 | `src/game/GameScene.ts` | Phaser rendering and input |
 | `src/ui/hud.ts` | HTML side panel, menus, overlays |
