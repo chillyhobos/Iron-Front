@@ -1,6 +1,10 @@
 # Iron Front
 
-An original turn-based 2D military tactics game for 2–4 players (free-for-all or teams), built with Phaser 3 + TypeScript.
+An original turn-based 2D military tactics game for 2–6 players (free-for-all, teams, or 3 vs 3), built with Phaser 3 + TypeScript. Play on one computer, against CPUs, or online with friends.
+
+**Play it now:** https://iron-front-r94w.onrender.com. It runs on a free server, so the first visit after a quiet spell can take about a minute to wake up.
+
+**Get the code** to run it or host it on your own PC: `git clone https://github.com/chillyhobos/Iron-Front.git`, or **Code → Download ZIP** on GitHub. You need [Node.js](https://nodejs.org) (LTS), then follow **Run it** below. To host online games for friends from your own PC, see **Playing over the internet** under Online play.
 
 **Art:** all graphics are original vector art drawn in code. There are no image files, so everything stays sharp at any zoom.
 - **Units:** each unit has its own sprite in its army's colour. Soldiers carry distinct gear (rifle, bazooka, ghillie hood and scoped rifle, hard hat and wrench), vehicles run on tracks or wheels, aircraft hover over a shadow, and ships sit in the water with a wake.
@@ -260,7 +264,14 @@ It listens on port 8787. The dev server forwards `/ws` to it, so players still o
 
 **Playing over the internet:**
 - **Same Wi-Fi:** run `npm run build`, then `npm start`. The server then hosts the game itself and prints a "same network" address such as `http://192.168.0.51:8787`. Everyone opens that address. (Windows may ask to let Node through the firewall the first time.)
-- **Elsewhere:** host it on Render for a permanent link (see **Hosting on Render** below), or put a tunnel such as Cloudflare Tunnel or ngrok in front of port 8787 on your PC.
+- **Elsewhere, from your own PC:** keep `npm start` running and open a free Cloudflare tunnel in a second terminal (install `cloudflared` from Cloudflare first). It prints a `https://….trycloudflare.com` link that works from anywhere, online play included. The link changes each time.
+
+```bash
+cloudflared tunnel --url http://localhost:8787
+```
+
+- **Elsewhere, always on:** host it on Render for a permanent link (see **Hosting on Render** below).
+- **Saves when self-hosting:** without a key, your server seals saved matches with a development key that anyone with this code could open. To keep them private, start it with your own key, and use the same one every time. In PowerShell: `$env:SAVE_SECRET = "some long random text"; npm start`
 
 **Limits for now:**
 - Only the host can hand out stand-ins, so if the host is away the others have to wait for them.
