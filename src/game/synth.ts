@@ -205,12 +205,119 @@ export function bridgeRepair(rate: number, seed: number): Float32Array {
   return finish(out, rate);
 }
 
+// ---------------------------------------------------------------- footsteps
+// One running footstep, by what the ground is. Each is a soft footfall (a low thud)
+// plus the sound of the surface; short, so a fast run stays clear.
+
+/** A clip of `seconds`, filled sample by sample by `voice(t, noise)`, then soft-clipped and finished. */
+function render(rate: number, seed: number, seconds: number, voice: (t: number, noise: number, rand: () => number) => number): Float32Array {
+  const rand = seeded(seed);
+  const out = new Float32Array(Math.floor(rate * seconds));
+  for (let i = 0; i < out.length; i++) out[i] = Math.tanh(voice(i / rate, rand() * 2 - 1, rand) * 1.3);
+  return finish(out, rate);
+}
+
+/** A band of noise between two frequencies (two one-pole filters), kept per clip. */
+function band(lowHz: number, highHz: number, rate: number) {
+  const aLow = lowpass(lowHz, rate), aHigh = lowpass(highHz, rate);
+  let under = 0, inBand = 0;
+  return (noise: number) => {
+    under += aLow * (noise - under);
+    inBand += aHigh * (noise - under - inBand);
+    return inBand;
+  };
+}
+
+/** Grass (plains): a soft thud and a brushing swish. */
+export function stepGrass(rate: number, seed: number) {
+  const thud = band(40, 380, rate), swish = band(900, 3500, rate);
+  const lag = 0.004 + seeded(seed)() * 0.004;
+  return render(rate, seed, 0.12, (t, n) => {
+    const brush = swish(n); // (filtered every sample, heard from just after the footfall)
+    const d = t - lag;
+    return thud(n) * Math.exp(-t * 50) * 4 * Math.min(1, t / 0.002)
+      + (d > 0 ? brush * Math.min(1, d / 0.01) * Math.exp(-d * 38) * 0.35 : 0);
+  });
+}
+
+/** Leaves and twigs (forest): a thud under a dry, crunchy crackle. */
+export function stepLeaves(rate: number, seed: number) {
+  const thud = band(40, 350, rate), crunch = band(2200, 8000, rate);
+  const r = seeded(seed + 99);
+  const snaps = Array.from({ length: 14 }, () => 0.003 + Math.pow(r(), 1.4) * 0.09);
+  return render(rate, seed, 0.13, (t, n) => {
+    let crackle = 0;
+    for (const at of snaps) { const d = t - at; if (d >= 0 && d < 0.004) crackle += Math.exp(-d * 1400); }
+    return thud(n) * Math.exp(-t * 60) * 2.6 * Math.min(1, t / 0.002) + crunch(n) * (0.25 + crackle * 1.6) * Math.exp(-t * 22);
+  });
+}
+
+/** Gravel and rock (mountains): a heavier thud, a gritty crunch, and a pebble click. */
+export function stepGravel(rate: number, seed: number) {
+  const thud = band(35, 420, rate), grit = band(1200, 6000, rate);
+  const r = seeded(seed + 7);
+  const grains = Array.from({ length: 34 }, () => 0.002 + r() * 0.1);
+  const pebbleAt = 0.05 + r() * 0.04, pebbleHz = 2600 + r() * 900;
+  return render(rate, seed, 0.15, (t, n) => {
+    let crunch = 0;
+    for (const at of grains) { const d = t - at; if (d >= 0 && d < 0.003) crunch += Math.exp(-d * 2000); }
+    const dp = t - pebbleAt;
+    const pebble = dp >= 0 ? Math.sin(2 * Math.PI * pebbleHz * dp) * Math.exp(-dp * 180) * 0.35 : 0;
+    return thud(n) * Math.exp(-t * 45) * 3.2 * Math.min(1, t / 0.002) + grit(n) * (0.35 + crunch * 1.2) * Math.exp(-t * 18) + pebble;
+  });
+}
+
+/** Hard ground (roads, towns, bases): a crisp boot tap. */
+export function stepHard(rate: number, seed: number) {
+  const knock = band(250, 900, rate), tick = band(2500, 7000, rate);
+  const r = seeded(seed + 3);
+  const heelHz = 380 + r() * 80;
+  return render(rate, seed, 0.09, (t, n) =>
+    (knock(n) * 2.4 + Math.sin(2 * Math.PI * heelHz * t) * 0.5) * Math.exp(-t * 70) * Math.min(1, t / 0.0008)
+    + tick(n) * Math.exp(-t * 260) * 1.8);
+}
+
+/** Bridge: a hollow wooden thunk that rings briefly. */
+export function stepBridge(rate: number, seed: number) {
+  const hit = band(200, 3000, rate);
+  const r = seeded(seed + 11);
+  const modes = [170, 395, 690].map(hz => hz * (0.96 + r() * 0.08));
+  return render(rate, seed, 0.18, (t, n) =>
+    hit(n) * Math.exp(-t * 120) * 1.6 * Math.min(1, t / 0.001)
+    + (Math.sin(2 * Math.PI * modes[0] * t) * 0.8 + Math.sin(2 * Math.PI * modes[1] * t) * 0.45 + Math.sin(2 * Math.PI * modes[2] * t) * 0.25)
+      * Math.exp(-t * 26) * Math.min(1, t / 0.002));
+}
+
+/** Water (wading a river): a splash and a quick bubble. */
+export function stepWater(rate: number, seed: number) {
+  const low = band(300, 1400, rate), high = band(1400, 5000, rate);
+  const r = seeded(seed + 5);
+  const bubbleAt = 0.04 + r() * 0.03;
+  let phase = 0;
+  return render(rate, seed, 0.2, (t, n) => {
+    // The splash moves from a low slap to a high spray.
+    const slap = low(n) * Math.exp(-t * 35) * 2.2;
+    const spray = high(n) * Math.min(1, t / 0.015) * Math.exp(-t * 20) * 1.4;
+    // A bubble: a short rising chirp.
+    const db = t - bubbleAt;
+    if (db >= 0) phase += (2 * Math.PI * (500 + 1600 * Math.min(1, db / 0.03))) / rate;
+    const bubble = db >= 0 && db < 0.04 ? Math.sin(phase) * Math.sin((Math.PI * db) / 0.04) * 0.35 : 0;
+    return (slap + spray) * Math.min(1, t / 0.002) + bubble;
+  });
+}
+
 /** Every sound the game can play: its recipe and how many variants to make of it. */
 export const RECIPES = {
   'rifle-shot': { make: rifleShot, variants: 4 },
   'smg-shot': { make: smgShot, variants: 4 },
   'demolition': { make: demolition, variants: 2 },
   'bridge-repair': { make: bridgeRepair, variants: 2 },
+  'step-grass': { make: stepGrass, variants: 4 },
+  'step-leaves': { make: stepLeaves, variants: 4 },
+  'step-gravel': { make: stepGravel, variants: 4 },
+  'step-hard': { make: stepHard, variants: 4 },
+  'step-bridge': { make: stepBridge, variants: 4 },
+  'step-water': { make: stepWater, variants: 4 },
 } satisfies Record<string, { make: (rate: number, seed: number) => Float32Array; variants: number }>;
 
 export type SoundName = keyof typeof RECIPES;

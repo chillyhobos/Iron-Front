@@ -164,11 +164,7 @@ export class GameScene extends Phaser.Scene {
     if (!sprite || anim.path.length <= 1) return afterMove();
     const end = anim.path[anim.path.length - 1];
     this.camera.ensureVisible(end.x * T + T / 2, end.y * T + T / 2);
-    this.tweens.chain({
-      targets: sprite,
-      tweens: anim.path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ANIM_STEP_MS })),
-      onComplete: afterMove,
-    });
+    this.walk(anim.unitType, sprite, anim.path, ANIM_STEP_MS, afterMove);
   }
 
   /** Show a server update: a battle first if it was an attack, then the new state. */
@@ -475,10 +471,23 @@ export class GameScene extends Phaser.Scene {
 
     if (path.length <= 1) return arrive();
     this.mode = 'animating';
+    this.walk(sel.unit.type, sprite, path, 70, arrive); // (your own moves are a little snappier)
+  }
+
+  /**
+   * Slide a unit along a path, one tile every `ms`. Infantry footsteps sound as each
+   * tile is entered, by what the ground is (cue 'footstep' with the terrain), but only
+   * on tiles the player can see.
+   */
+  private walk(type: UnitType, sprite: Phaser.GameObjects.Container, path: Pos[], ms: number, onComplete: () => void) {
+    const onFoot = UNITS[type].moveType === 'foot' || UNITS[type].moveType === 'boot';
     this.tweens.chain({
       targets: sprite,
-      tweens: path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: 70 })),
-      onComplete: arrive,
+      tweens: path.slice(1).map(p => ({
+        x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ms,
+        ...(onFoot ? { onStart: () => { if (this.seesTile(p.x, p.y)) cue('footstep', tileAt(this.s, p.x, p.y).terrain); } } : {}),
+      })),
+      onComplete,
     });
   }
 
@@ -781,11 +790,7 @@ export class GameScene extends Phaser.Scene {
     if (path.length <= 1 || document.hidden || hiddenMove || !sprite) return afterMove();
     // Big maps: follow the CPU's move if it happens off-screen.
     this.camera.ensureVisible(end.x * T + T / 2, end.y * T + T / 2);
-    this.tweens.chain({
-      targets: sprite,
-      tweens: path.slice(1).map(p => ({ x: p.x * T + T / 2, y: p.y * T + T / 2, duration: ANIM_STEP_MS })),
-      onComplete: afterMove,
-    });
+    this.walk(u.type, sprite, path, ANIM_STEP_MS, afterMove);
   }
 
   private handleEvents(events: GameEvent[]) {

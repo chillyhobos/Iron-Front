@@ -19,6 +19,16 @@ const FIRE_SOUNDS: Partial<Record<string, SoundName>> = {
   engineer: 'smg-shot',
 };
 
+/** Which footstep each terrain makes (infantry only; sea can't be walked on). */
+const FOOTSTEP_SOUNDS: Partial<Record<string, SoundName>> = {
+  plain: 'step-grass',
+  forest: 'step-leaves',
+  mountain: 'step-gravel',
+  road: 'step-hard', city: 'step-hard', factory: 'step-hard', hq: 'step-hard', port: 'step-hard', airfield: 'step-hard',
+  bridge: 'step-bridge',
+  river: 'step-water',
+};
+
 type Prefs = { volume: number; muted: boolean };
 
 class SoundEngine {
@@ -111,6 +121,10 @@ class SoundEngine {
   private onCue(c: Cue, detail?: string) {
     if (c === 'fire' && detail) {
       const name = FIRE_SOUNDS[detail];
+      if (name) this.play(name);
+    }
+    if (c === 'footstep' && detail) {
+      const name = FOOTSTEP_SOUNDS[detail];
       if (name) this.play(name);
     }
     // Engineers: blowing up a bridge, and fixing one (only Engineers repair bridges).
