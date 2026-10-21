@@ -112,7 +112,7 @@ export class AttackFx {
         onStart: () => {
           shot.setVisible(true);
           if (look.flash) this.burst(start, 0xfff2a0, look.flash * 0.9, 0, FLASH_MS);
-          cue('fire', style);
+          cue('fire', type);
         },
         onUpdate: () => {
           const t = progress.t;
@@ -127,7 +127,7 @@ export class AttackFx {
           live.delete(shot);
           this.put(shot);
           if (look.impact) this.burst(end, 0xffc060, look.impact * 0.4, look.impact * 1.6, IMPACT_MS);
-          cue('impact', style);
+          cue('impact', type);
           if (++landed === w.shots) finish();
         },
       }));

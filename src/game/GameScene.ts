@@ -23,6 +23,7 @@ import { AttackFx } from './attackFx';
 import { drawTerrain, isLowFuel, makeUnitSprite, TILE } from './render';
 import { MapCamera } from './camera';
 import { cue } from './cues';
+import { sound } from './sound';
 
 export { TILE };
 const T = TILE;
@@ -237,6 +238,8 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerup', (p: Phaser.Input.Pointer) => this.onClick(p));
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.onMove(p));
     this.input.keyboard?.on('keydown-ESC', () => this.cancel());
+    this.input.keyboard?.on('keydown-M', () => sound.setMuted(!sound.muted));
+    this.hud.bindSound(sound);
     this.input.keyboard?.on('keydown-Z', (e: KeyboardEvent) => { if (e.ctrlKey || e.metaKey) this.undo(); });
     this.hud.onEndTurn(() => this.endTurn());
     this.hud.onUndo(() => this.undo());

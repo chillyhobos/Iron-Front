@@ -5,6 +5,7 @@ import { createGame, mapMode, MODES, slotsFor, type MapMode, type PlayerSetup } 
 import { MapEditor } from './editor/editor';
 import { allMaps, isBuiltin } from './ui/mapStore';
 import { GameScene, TILE } from './game/GameScene';
+import { sound } from './game/sound';
 import { cssColor, escapeHtml, Hud } from './ui/hud';
 import { pickOnlineSave, pickSaveFile, readAutosave } from './ui/saves';
 import { applyUnitSet } from './core/unitSets';
@@ -531,5 +532,5 @@ function startGame(state: GameState, resumed: boolean, onlineGame?: { link: Onli
   });
   game.scene.add('game', GameScene, true, { state, hud: new Hud(), resumed, online: onlineGame });
   // Handy for debugging in the browser console during development (not in built releases).
-  if (import.meta.env.DEV) (window as unknown as { ironFront: Phaser.Game }).ironFront = game;
+  if (import.meta.env.DEV) Object.assign(window, { ironFront: game, ironFrontSound: sound });
 }

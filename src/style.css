@@ -244,3 +244,8 @@ select, input {
 .standins { display: grid; gap: 6px; background: var(--panel-2); border: 1px solid #d9a520; border-radius: 6px; padding: 6px 8px; }
 .standin-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; font-size: 12px; }
 .standin-row select { padding: 2px 4px; font-size: 12px; max-width: 130px; }
+.sound-row { display: flex; align-items: center; gap: 8px; }
+.sound-row button { padding: 4px 8px; min-width: 38px; }
+.sound-row button.muted { opacity: 0.7; }
+#volume { flex: 1; min-width: 0; accent-color: var(--accent); }
+#volume.muted { opacity: 0.4; }

@@ -13,6 +13,8 @@ It installs and builds the game the first time (a minute or two), starts it, and
 
 **Battles:** every unit that can attack fires its own weapon. Rifles fire tracer bursts, snipers a single fast shot, bazookas a rocket, and tanks a shell with recoil. Machine guns rattle off rapid tracers, artillery and battleships lob arcing shells, rocket launchers fire a salvo, missile launchers send missiles up steeply, gunships fire straight missiles and bombers drop bombs. The damage shows when the shots land. If the defender survives and can hit back, it fires its own weapon, and then the attacker's damage shows. The map updates only after that, so a unit destroyed by return fire stays on screen until its explosion. Battles look and time the same offline and online, for every player, and are built to stay smooth (pooled effects from two tiny generated shapes).
 
+**Sound:** sound effects are original and made in code too, so there are no audio files. They play in step with the animations, on every player's screen. So far the Rifleman has its own sound: a punchy, bassy automatic-rifle crack with a sci-fi edge, three shots per attack in time with its tracers. Other units are silent for now. Use the speaker button and volume slider in the side panel, or press **M** to mute. Your setting is remembered in your browser. Sound starts after your first click, as browsers require.
+
 **Art:** all graphics are original vector art drawn in code. There are no image files, so everything stays sharp at any zoom.
 - **Units:** each unit has its own sprite in its army's colour. Soldiers carry distinct gear (rifle, bazooka, ghillie hood and scoped rifle, hard hat and wrench), vehicles run on tracks or wheels, aircraft hover over a shadow, and ships sit in the water with a wake.
 - **Facing:** armies whose HQ is on the right half of the map face left, toward the enemy.
@@ -402,7 +404,9 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/ui/mapStore.ts` | Custom maps saved in the browser, plus map file import/export |
 | `src/game/camera.ts` | Zoom and scroll camera shared by the game and the editor |
 | `src/game/sprites.ts` | Unit art: a code-drawn vector sprite for every unit, in the owner's colour |
-| `src/game/cues.ts` | Named moments for sound effects to hook into later (`fire` and `impact` with the weapon style, `explosion`, `capture-hop`, `captured`); nothing plays sounds yet |
+| `src/game/cues.ts` | Named moments sounds hook into (`fire` and `impact` with the unit type, `explosion`, `capture-hop`, `captured`) |
+| `src/game/sound.ts` | Sound engine: makes each sound once when sound starts, plays it on its cue (volume, mute, voice limit); `FIRE_SOUNDS` says which unit makes which sound. Every sound plays at the same level (`SFX_LEVEL` in synth.ts) |
+| `src/game/synth.ts` | Sound recipes: each effect computed sample by sample (the Rifleman's shot so far). To give another unit a sound, add a recipe that ends with `finish()`, so it peaks at the same level as every other sound |
 | `src/game/attackFx.ts` | Battle effects: muzzle flashes, tracers, shells, rockets, bombs and impacts (one small pool of reused images) |
 | `src/core/timing.ts` | How long animations take, and each unit's weapon style; the server paces CPU moves with the same numbers |
 | `src/game/render.ts` | Terrain, building and unit drawing shared by the game and the editor |

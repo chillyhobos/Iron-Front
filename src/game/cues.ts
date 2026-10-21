@@ -1,16 +1,16 @@
 // Named moments in the game that sound effects (or anything else) can hook into.
 // Animations call cue() at the moment something happens on screen, in sync with
-// what the player sees, offline and online alike. Nothing listens yet: a sound
-// player only needs to call onCue() and play the matching sound.
+// what the player sees, offline and online alike. sound.ts listens and plays the
+// matching sound (so far for some of them).
 
 export type Cue =
   /** A capturing unit lands each of its hops. */
   | 'capture-hop'
   /** A building changed hands. */
   | 'captured'
-  /** A shot leaves the barrel (detail: the weapon style, e.g. 'cannon', 'rockets'). */
+  /** A shot leaves the barrel (detail: the firing unit's type, e.g. 'rifle', 'htank'). */
   | 'fire'
-  /** A shot lands (detail: the weapon style). */
+  /** A shot lands (detail: the firing unit's type). */
   | 'impact'
   /** A unit is destroyed. */
   | 'explosion';
