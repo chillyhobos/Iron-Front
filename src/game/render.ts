@@ -73,6 +73,12 @@ function drawRiver(g: Phaser.GameObjects.Graphics, s: GameState, x: number, y: n
       if (dy < 0) g.fillRect(px + cc, py, cw, cc);
       if (dy > 0) g.fillRect(px + cc, py + cc + cw, cw, cc);
     }
+    // Where the river is two tiles wide (water on both sides and the diagonal), fill the
+    // corner as well, so no speck of grass is left where four river tiles meet.
+    for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      if (!isWaterLike(s, x + dx, y) || !isWaterLike(s, x, y + dy) || !isWaterLike(s, x + dx, y + dy)) continue;
+      g.fillRect(dx < 0 ? px : px + cc + cw, dy < 0 ? py : py + cc + cw, cc, cc);
+    }
   };
   channel(0x9c7b4f, 0);
   channel(0x4a97df, 3);
