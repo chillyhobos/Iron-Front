@@ -2,7 +2,7 @@
 // server to referee online games. All changes go through applyAction().
 
 import {
-  BLOCKED, CAPTURE_POINTS, DAMAGE, familyOf, fullSupplies, INCOME_PER_PROPERTY, MAX_HP, maxHpOf, MAX_UNITS, supplyClassOf,
+  BLOCKED, CAPTURE_POINTS, carries, DAMAGE, familyOf, fullSupplies, INCOME_PER_PROPERTY, MAX_HP, maxHpOf, MAX_UNITS, supplyClassOf,
   TERRAIN, UNITS, type UnitType,
 } from './data';
 import type { Action, ActionResult, Command, GameEvent, GameState, Pos, Tile, Unit } from './state';
@@ -61,7 +61,7 @@ export function canBoard(transport: Unit, u: Unit): boolean {
   if ((transport.cargo?.length ?? 0) >= t.capacity) return false;
   // A loaded transport can't itself be carried.
   if (u.cargo?.length) return false;
-  return t.carries.includes(familyOf(u.type));
+  return carries(transport.type, u.type);
 }
 
 /** Units with limited ammo can't fire when empty. */

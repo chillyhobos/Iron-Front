@@ -75,7 +75,7 @@ The dev server checks for file changes on a short timer (`vite.config.ts`), beca
 | Gunship | air | 9,000 | 6 | Attacks ground units, ships and helicopters |
 | Interceptor | air | 20,000 | 9 | Attacks aircraft only |
 | Bomber | air | 22,000 | 7 | Heavy damage to ground units and ships |
-| Airlift | air | 5,000 | 6 | Carries 1 infantry over anything. No weapon. |
+| Airlift | air | 5,000 | 6 | Carries 1 unit over anything: any infantry or a Scout Car (no other vehicles). No weapon. |
 | Cruiser | ship | 18,000 | 6 | Anti-air, also hits ships |
 | Battleship | ship | 28,000 | 5 | Long-range guns (2–6 squares), hits ground units and ships |
 | Lander | ship | 12,000 | 6 | Carries 2 ground units across water. No weapon. |
@@ -107,7 +107,7 @@ The dev server checks for file changes on a short timer (`vite.config.ts`), beca
 - **CPU players:** build and use armed aircraft and ships, head home to refuel and rearm, and keep at most 3 aircraft per airfield and 3 ships per port.
 - **CPU vehicles:** they head for their nearest supply building or APC once their fuel won't cover the trip plus a turn of driving, and they still fight on the way. With no passengers to carry, a CPU APC drives out to vehicles low on fuel or ammo and parks next to them. In test games no CPU vehicle was left stranded.
 - **CPU transports:** when ground units have no land route to their target (for example, the enemy is on another island), the CPU buys a Lander or Airlift. Its units walk to the transport and board, the transport carries them across, and it drops each passenger on the tile closest to that unit's goal. Medium and Hard CPUs also buy an APC to speed infantry up long marches. Once 4 or more ground units are waiting for a lift, the CPU stops building ground units and spends on transports, aircraft and ships instead.
-- **Tuning:** the numbers live in `src/data/units.json` (`fuel`, `fuelPerDay`, `ammo`, `transport`) and `src/data/terrain.json` (`supplies`, `builds`).
+- **Tuning:** the numbers live in `src/data/units.json` (`fuel`, `fuelPerDay`, `ammo`, `transport`; a transport's `carries` lists whole families like `"infantry"` and/or single unit types like `"scout"`) and `src/data/terrain.json` (`supplies`, `builds`).
 
 ## Sniper
 

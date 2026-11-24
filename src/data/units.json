@@ -26,7 +26,7 @@
   "bomber":    { "name": "Bomber",          "label": "BMB", "cost": 22000, "move": 7, "vision": 2, "moveType": "air",    "minRange": 1, "maxRange": 1, "canCapture": false,
                  "fuel": 99, "fuelPerDay": 5, "ammo": 9, "bridgeDamage": 2 },
   "airlift":   { "name": "Airlift",         "label": "AIR", "cost": 5000,  "move": 6, "vision": 2, "moveType": "air",    "minRange": 1, "maxRange": 1, "canCapture": false,
-                 "fuel": 99, "fuelPerDay": 2, "transport": { "capacity": 1, "carries": ["infantry"] } },
+                 "fuel": 99, "fuelPerDay": 2, "transport": { "capacity": 1, "carries": ["infantry", "scout"] } },
 
   "cruiser":   { "name": "Cruiser",         "label": "CRU", "cost": 18000, "move": 6, "vision": 3, "moveType": "ship",   "minRange": 1, "maxRange": 1, "canCapture": false,
                  "fuel": 70, "fuelPerDay": 1, "ammo": 9 },

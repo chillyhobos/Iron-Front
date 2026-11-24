@@ -8,7 +8,7 @@
 //   2. When no units are left to move, spend money at free factories.
 
 import {
-  BLOCKED, CAPTURE_POINTS, DAMAGE, familyOf, MAX_UNITS, maxHpOf, supplyClassOf, TERRAIN, UNIT_ORDER, UNITS,
+  BLOCKED, CAPTURE_POINTS, carries, DAMAGE, familyOf, MAX_UNITS, maxHpOf, supplyClassOf, TERRAIN, UNIT_ORDER, UNITS,
   type MoveType, type SupplyClass, type UnitType,
 } from './data';
 import {
@@ -615,8 +615,7 @@ class Context {
 
   /** Could this transport type carry this rider? Landers only fetch stranded units (no land route). */
   carriesFor(transportType: UnitType, rider: Unit, wish: RideWish): boolean {
-    const t = UNITS[transportType].transport;
-    if (!t || !t.carries.includes(familyOf(rider.type))) return false;
+    if (!carries(transportType, rider.type)) return false;
     return wish === 'stranded' || UNITS[transportType].moveType !== 'ship';
   }
 

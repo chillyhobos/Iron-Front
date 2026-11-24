@@ -80,8 +80,11 @@ export interface UnitDef {
   fuelPerDay?: number;
   /** Shots before needing to rearm (aircraft and ships with weapons). */
   ammo?: number;
-  /** Can carry other units. */
-  transport?: { capacity: number; carries: UnitFamily[] };
+  /**
+   * Can carry other units: `carries` lists whole families ("infantry") and/or single
+   * unit types ("scout"), so a transport can take infantry plus just one kind of vehicle.
+   */
+  transport?: { capacity: number; carries: Array<UnitFamily | UnitType> };
   /** Refuels and rearms adjacent friendly units at the start of each turn (APC). */
   resupplies?: boolean;
   /** Full health if not the usual 100 (Engineer: 50, so it also hits half as hard). */
@@ -110,6 +113,12 @@ export function familyOf(type: UnitType): UnitFamily {
   if (m === 'air') return 'air';
   if (m === 'ship') return 'naval';
   return m === 'foot' || m === 'boot' ? 'infantry' : 'vehicle';
+}
+
+/** Can this transport type carry a unit of this type (by its family, or by name)? */
+export function carries(transportType: UnitType, riderType: UnitType): boolean {
+  const t = UNITS[transportType].transport;
+  return !!t && (t.carries.includes(familyOf(riderType)) || t.carries.includes(riderType));
 }
 
 /** Full fuel, ammo and bridge kits for a newly built unit (only for unit types that use them). */
