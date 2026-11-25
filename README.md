@@ -56,6 +56,7 @@ The dev server checks for file changes on a short timer (`vite.config.ts`), beca
 
 ## How to play (hot-seat)
 
+- **Choosing a map:** a small preview under the **Map** picker shows the chosen map: terrain, each army's starting buildings in its color (for the player count you picked; unused armies' buildings show as neutral grey), HQs with a white dot and factories, ports and airfields with a dark center. It stays small (about 160×120 at most, less on phones).
 - **Build:** click one of your factories (ground units), ports (ships) or airfields (aircraft) to buy units. New units can act next turn.
 - **Move:** click a unit; blue tiles are where it can go and red outlines are enemies it can reach. Click a tile, then pick **Attack**, **Capture** or **Wait**.
 - **Inspect:** click an enemy unit to see its movement (orange) and threat range (red).
@@ -432,6 +433,7 @@ None of the difficulties get extra money or other bonuses. In simulated 1v1 game
 | `src/data/maps.json` | Maps as full grids, with a terrain grid and an owner grid (see the top of `maps.ts`) |
 | `src/core/data.ts` | Loads the JSON above and gives it types |
 | `src/core/maps.ts` | Turns a map into a new game |
+| `src/ui/mapPreview.ts` | The setup screen's small map preview (a 2D canvas, one square per tile) |
 | `src/ui/saves.ts` | Autosave, save files, and checks that a save file is valid |
 | `src/core/rules.ts` | Rules engine: movement, combat, capture, turns. No graphics. |
 | `src/core/ai.ts` | Computer opponent: picks the next Action for a CPU player |

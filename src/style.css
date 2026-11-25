@@ -51,6 +51,17 @@ select, input {
 .setup-panel h1 { margin: 0; letter-spacing: 6px; color: var(--accent); text-align: center; }
 .subtitle { margin: 0 0 8px; text-align: center; color: var(--muted); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+
+/* Setup screen: a small preview of the chosen map, tucked under the map picker. The canvas
+   keeps its shape and shrinks to fit these limits (smaller on phones). */
+.map-preview { display: flex; justify-content: flex-end; margin: -2px 0 2px; }
+.map-preview canvas {
+  display: block; width: auto; height: auto; max-width: 160px; max-height: 120px;
+  border: 1px solid #4a5563; border-radius: 4px; background: var(--panel-2);
+}
+@media (max-width: 600px) {
+  .map-preview canvas { max-width: 112px; max-height: 84px; }
+}
 .presets { justify-content: flex-start; color: var(--muted); }
 .meta { color: var(--muted); font-size: 13px; }
 .continue-box {

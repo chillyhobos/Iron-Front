@@ -7,6 +7,7 @@ import { allMaps, isBuiltin } from './ui/mapStore';
 import { GameScene, TILE } from './game/GameScene';
 import { sound } from './game/sound';
 import { cssColor, escapeHtml, Hud } from './ui/hud';
+import { drawMapPreview } from './ui/mapPreview';
 import { pickOnlineSave, pickSaveFile, readAutosave } from './ui/saves';
 import { applyUnitSet } from './core/unitSets';
 import { UnitEditor } from './ui/unitEditor';
@@ -159,6 +160,18 @@ function renderRows(teams?: number[]) {
     rows.appendChild(row);
   });
   refreshControlOptions();
+  updateMapPreview();
+}
+
+/** Redraw the map preview for the chosen map and player count (hidden when there's no map). */
+function updateMapPreview() {
+  const canvas = $<HTMLCanvasElement>('map-preview');
+  const map = selectedMap();
+  canvas.parentElement!.classList.toggle('hidden', !map);
+  if (!map) return;
+  const label = drawMapPreview(canvas, map, activeSlots());
+  canvas.setAttribute('aria-label', label);
+  canvas.title = label;
 }
 
 /**
