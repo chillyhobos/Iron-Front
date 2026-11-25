@@ -842,6 +842,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const turn = events.find(e => e.kind === 'turn');
+    if (turn) cue('turn-start'); // a chime as each new turn begins, for everyone watching
     if (turn && this.online) {
       // Online: no handing the device over; it's either our turn or we wait for theirs.
       const p = currentPlayer(this.s);

@@ -162,7 +162,8 @@ class SoundEngine {
       // Make every clip once, so nothing is computed mid-battle: one sound per task, so
       // the game never stalls for all of them at once (they're all ready in a moment).
       const ctx = this.ctx;
-      const queue = Object.keys(RECIPES) as SoundName[];
+      // The turn chime first: the game's first turn starts right after the click that starts sound.
+      const queue = (Object.keys(RECIPES) as SoundName[]).sort((a, b) => Number(b === 'turn-chime') - Number(a === 'turn-chime'));
       const makeNext = () => {
         const name = queue.shift();
         if (!name) return;
@@ -195,6 +196,7 @@ class SoundEngine {
     // A unit destroyed (a bridge going down has its own sound, below).
     if (c === 'explosion' && detail !== 'bridge') this.play('explosion');
     if (c === 'captured') this.play('capture-jingle');
+    if (c === 'turn-start') this.play('turn-chime');
     if (c === 'footstep' && detail) {
       const name = FOOTSTEP_SOUNDS[detail];
       if (name) this.play(name);

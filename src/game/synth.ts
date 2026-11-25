@@ -619,6 +619,28 @@ export function captureJingle(rate: number, seed: number) {
   });
 }
 
+// ---------------------------------------------------------------- turns
+
+/**
+ * A new turn: two bell strikes rising a fifth ("ding... dong"), each with a bell's
+ * out-of-tune overtones and a long, soft ring, over a faint low hum. Nothing else in
+ * the game sounds like a bell, so it can't be mistaken for a battle sound.
+ */
+export function turnChime(rate: number, seed: number) {
+  const strikes = [{ at: 0, hz: 880 }, { at: 0.14, hz: 1318.5 }].map(s => ({ ...s, hz: s.hz * (1 + (seed - 1) * 0.003) }));
+  // Bell partials: [ratio to the strike's pitch, loudness, how fast it dies away].
+  const partials: [number, number, number][] = [[0.5, 0.35, 2], [1, 1, 2.3], [2, 0.4, 4.5], [2.76, 0.28, 6], [4.07, 0.1, 10]];
+  return shape(rate, seed, 1.5, 7000, t => {
+    let s = 0;
+    for (const { at, hz } of strikes) {
+      const d = t - at;
+      if (d < 0) continue;
+      for (const [ratio, gain, decay] of partials) s += Math.sin(2 * Math.PI * hz * ratio * d) * gain * env(d, 0.004, decay);
+    }
+    return s * 0.45 + Math.sin(2 * Math.PI * 220 * t) * env(t, 0.05, 2.5) * 0.12;
+  });
+}
+
 /** Every sound the game can play: its recipe and how many variants to make of it. */
 export const RECIPES = {
   'rifle-shot': { make: rifleShot, variants: 4 },
@@ -647,6 +669,7 @@ export const RECIPES = {
   'impact-heavy': { make: impactHeavy, variants: 3 },
   'explosion': { make: explosion, variants: 3 },
   'capture-jingle': { make: captureJingle, variants: 2 },
+  'turn-chime': { make: turnChime, variants: 2 },
   'drive-treads': { make: driveTreads, variants: 2 },
   'drive-tires': { make: driveTires, variants: 2 },
   'fly-jet': { make: flyJet, variants: 2 },
