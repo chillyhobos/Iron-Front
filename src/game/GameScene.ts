@@ -6,7 +6,7 @@ import { CAPTURE_POINTS, maxHpOf, TERRAIN, UNITS } from '../core/data';
 import {
   applyAction, boardingTarget, bridgeTargetsFrom, canBuildBridge, canCapture, canSee, demolishTargetsFrom, repairTargetsFrom, currentPlayer, destinations, displayHp, dropTiles, forecast,
   inBounds, pathTo,
-  posKey, reachable, startTurn, targetsFrom, threatTiles, tileAt, unitAt, unitById, unitMaxRange, unitMove,
+  isArmed, posKey, rangeTiles, reachable, startTurn, targetsFrom, threatTiles, tileAt, unitAt, unitById, unitMaxRange, unitMove,
   unitVision, visibleTiles, walkPath,
   type Reach, type Vision,
 } from '../core/rules';
@@ -39,7 +39,15 @@ interface Selection {
   dests: Set<string>;
   /** Enemy unit ids this unit could attack this turn. */
   threats: Set<number>;
+  /** Its reach as a weapon: tiles it could hit after moving, and from where it stands. */
+  ranges: Ranges;
 }
+
+/**
+ * A unit's ranges, as shown when it's inspected or selected: where it can move, every
+ * tile it could hit after moving (danger), and the tiles in range from where it stands.
+ */
+interface Ranges { unitId: number; move: Set<string>; danger: Set<string>; here: Set<string> }
 
 /** Waiting units' hop: once every HOP_EVERY ms, HOP_HEIGHT px up and back down in HOP_MS. */
 const HOP_EVERY = 1600;
@@ -89,7 +97,9 @@ export class GameScene extends Phaser.Scene {
     unloading?: Unit;
     dropOptions?: Pos[];
   } | null = null;
-  private inspect: { move: Set<string>; danger: Set<string> } | null = null;
+  /** A unit whose ranges are showing (clicked or tapped), and one under the mouse (desktop preview). */
+  private inspect: Ranges | null = null;
+  private hoverInspect: Ranges | null = null;
   private hover: Pos | null = null;
   private resumed = false;
   /** Snapshots of the state before each of the current human player's actions this turn. */
@@ -335,6 +345,8 @@ export class GameScene extends Phaser.Scene {
     const x = Math.floor(p.worldX / T);
     const y = Math.floor(p.worldY / T);
     if (!inBounds(this.s, x, y)) return;
+    this.hoverInspect = null;
+    this.pointAt(x, y);
 
     switch (this.mode) {
       case 'idle':
@@ -363,10 +375,22 @@ export class GameScene extends Phaser.Scene {
     const y = Math.floor(p.worldY / T);
     if (!inBounds(this.s, x, y)) return;
     if (this.hover && this.hover.x === x && this.hover.y === y) return;
+    // With a mouse, pointing at a unit previews its ranges (unless one is pinned by a click).
+    if (!p.wasTouch && this.mode === 'idle' && !this.inspect) {
+      const u = this.visibleUnitAt(x, y);
+      const was = this.hoverInspect?.unitId;
+      this.hoverInspect = u ? this.rangesOf(u) : null;
+      if (was !== this.hoverInspect?.unitId) this.drawOverlay();
+    }
+    this.pointAt(x, y);
+    if (this.mode === 'selected') this.drawOverlay();
+  }
+
+  /** Mark the tile being pointed at (or tapped) and describe it in the info panel. */
+  private pointAt(x: number, y: number) {
     this.hover = { x, y };
     this.cursorG.clear().lineStyle(3, 0xffffff, 0.9).strokeRect(x * T + 1, y * T + 1, T - 2, T - 2);
     this.updateInfo();
-    if (this.mode === 'selected') this.drawOverlay();
   }
 
   /** The unit on a tile, if the viewer can see it. */
@@ -385,10 +409,12 @@ export class GameScene extends Phaser.Scene {
 
   private clickIdle(x: number, y: number) {
     const u = this.visibleUnitAt(x, y);
+    const again = !!u && this.inspect?.unitId === u.id;
     this.inspect = null;
-    if (u && u.owner === this.s.current && !u.acted) return this.select(u);
+    if (u && u.owner === this.s.current && !u.acted && this.myTurn()) return this.select(u);
     if (u) {
-      this.inspectUnit(u);
+      if (!again) this.inspectUnit(u); // a second tap on the same unit hides its ranges
+      this.updateInfo();
       return this.drawOverlay();
     }
     const tile = tileAt(this.s, x, y);
@@ -450,9 +476,10 @@ export class GameScene extends Phaser.Scene {
       const moved = x !== u.x || y !== u.y;
       for (const t of targetsFrom(this.s, u, x, y, moved)) threats.add(t.id);
     }
-    this.sel = { unit: u, reach, dests, threats };
+    this.sel = { unit: u, reach, dests, threats, ranges: this.rangesOf(u) };
     this.mode = 'selected';
     this.drawOverlay();
+    this.updateInfo();
   }
 
   private clearSelection() {
@@ -461,11 +488,17 @@ export class GameScene extends Phaser.Scene {
     this.hud.hideActionMenu();
     if (this.mode !== 'locked') this.mode = 'idle';
     this.drawOverlay();
+    this.updateInfo();
   }
 
-  /** Show where an enemy (or spent) unit can move and what it threatens. */
+  /** Show where an enemy (or spent) unit can move, what it threatens, and what's in range right now. */
   private inspectUnit(u: Unit) {
-    this.inspect = threatTiles(this.s, u);
+    this.inspect = this.rangesOf(u);
+  }
+
+  private rangesOf(u: Unit): Ranges {
+    const { move, danger } = threatTiles(this.s, u);
+    return { unitId: u.id, move, danger, here: rangeTiles(this.s, u, u.x, u.y) };
   }
 
   private moveSelected(x: number, y: number) {
@@ -920,6 +953,7 @@ export class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------ drawing
 
   private refresh() {
+    this.hoverInspect = null; // units may have moved: the mouse preview is rebuilt on the next move
     this.updateViewer();
     this.drawTerrain();
     this.drawFog();
@@ -1045,18 +1079,36 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(color, alpha).fillRect(x * T, y * T, T, T);
     };
 
-    if (this.inspect) {
-      for (const k of this.inspect.danger) fill(k, 0xff4040, 0.25);
-      for (const k of this.inspect.move) fill(k, 0xffa040, 0.3);
+    // Tiles in range from where the unit stands: a bold red frame.
+    const inRangeNow = (keys: Set<string>, alpha: number) => {
+      g.lineStyle(2.5, 0xff2a2a, alpha);
+      for (const k of keys) {
+        const [x, y] = k.split(',').map(Number);
+        g.strokeRect(x * T + 3, y * T + 3, T - 6, T - 6);
+      }
+    };
+
+    // An inspected unit (or, with a mouse, the one being pointed at; a bit fainter).
+    const shown = this.inspect ?? (this.mode === 'idle' ? this.hoverInspect : null);
+    if (shown) {
+      const k = shown === this.inspect ? 1 : 0.75;
+      // Red only beyond where it can move (it can hit anything next to its moves too), so the
+      // two colours never mix into mud.
+      for (const t of shown.danger) if (!shown.move.has(t)) fill(t, 0xff4040, 0.3 * k);
+      for (const t of shown.move) fill(t, 0xffa040, 0.3 * k);
+      inRangeNow(shown.here, 0.95 * k);
     }
 
     if (this.sel && this.mode === 'selected') {
+      // What it could hit after moving, beyond where it can go (so the blue stays clear).
+      for (const k of this.sel.ranges.danger) if (!this.sel.dests.has(k)) fill(k, 0xff4040, 0.2);
       for (const k of this.sel.dests) {
         // Our own transports you can board show in green.
         const [dx, dy] = k.split(',').map(Number);
         const boards = (dx !== this.sel.unit.x || dy !== this.sel.unit.y) && boardingTarget(this.s, this.sel.unit, dx, dy);
         fill(k, boards ? 0x4fd16b : 0x4fa3ff, boards ? 0.55 : 0.4);
       }
+      inRangeNow(this.sel.ranges.here, 0.95);
       for (const id of this.sel.threats) {
         const t = this.s.units.find(u => u.id === id);
         if (t) g.lineStyle(3, 0xff3030, 1).strokeRect(t.x * T + 2, t.y * T + 2, T - 4, T - 4);
@@ -1144,6 +1196,14 @@ export class GameScene extends Phaser.Scene {
         const secret = !!this.s.fog && this.viewerTeam !== null && this.s.players[u.owner].team !== this.viewerTeam;
         const aboard = secret ? '' : (u.cargo ?? []).map(c => `${UNITS[c.type].name} (${displayHp(c.hp)} HP)`).join(', ');
         html += `<br>Carrying ${u.cargo?.length ?? 0}/${def.transport.capacity}${aboard ? `: ${escapeHtml(aboard)}` : ''}`;
+      }
+      // While its ranges are on the map, a key to the colours.
+      const selected = this.mode === 'selected' && this.sel?.unit.id === u.id;
+      if (selected || this.inspect?.unitId === u.id || (this.mode === 'idle' && this.hoverInspect?.unitId === u.id)) {
+        const moves = selected ? 'move-own' : 'move';
+        html += isArmed(u.type)
+          ? `<div class="range-key"><span class="key ${moves}"></span>moves <span class="key danger"></span>can also hit <span class="key now"></span>in range now</div>`
+          : `<div class="range-key"><span class="key ${moves}"></span>moves · no weapon, can't attack</div>`;
       }
       if (this.mode === 'target' && this.sel && this.pending?.targets.some(t => t.id === u.id)) {
         const f = forecast(this.s, this.sel.unit, this.pending.to, u);

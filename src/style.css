@@ -54,6 +54,15 @@ select, input {
 
 /* Setup screen: a small preview of the chosen map, tucked under the map picker. The canvas
    keeps its shape and shrinks to fit these limits (smaller on phones). */
+/* Info panel: the key to a unit's ranges on the map. */
+.range-key { margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+.range-key .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 8px; vertical-align: -1px; }
+.range-key .key:first-child { margin-left: 0; }
+.range-key .key.move { background: rgba(255, 160, 64, 0.75); }
+.range-key .key.move-own { background: rgba(79, 163, 255, 0.75); }
+.range-key .key.danger { background: rgba(255, 64, 64, 0.5); }
+.range-key .key.now { border: 2px solid #ff2a2a; }
+
 .map-preview { display: flex; justify-content: flex-end; margin: -2px 0 2px; }
 .map-preview canvas {
   display: block; width: auto; height: auto; max-width: 160px; max-height: 120px;

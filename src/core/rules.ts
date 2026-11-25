@@ -314,11 +314,29 @@ export function targetsFrom(s: GameState, u: Unit, x: number, y: number, moved: 
   });
 }
 
+/** Can this unit type attack anything at all? (APCs, Airlifts and Landers can't.) */
+export const isArmed = (type: UnitType) => Object.values(DAMAGE[type]).some(v => v > 0);
+
+/** Tiles this unit could attack from (x, y), by range alone (empty for unarmed units). */
+export function rangeTiles(s: GameState, u: Unit, x: number, y: number): Set<string> {
+  const out = new Set<string>();
+  if (!isArmed(u.type)) return out;
+  const min = UNITS[u.type].minRange, max = unitMaxRange(s, u);
+  for (let dy = -max; dy <= max; dy++) {
+    for (let dx = -max; dx <= max; dx++) {
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d >= min && d <= max && inBounds(s, x + dx, y + dy)) out.add(posKey(x + dx, y + dy));
+    }
+  }
+  return out;
+}
+
 /** Every tile this unit could attack next turn (move + fire for direct units, fixed range for indirect or set-up ones). */
 export function threatTiles(s: GameState, u: Unit): { move: Set<string>; danger: Set<string> } {
   const def = UNITS[u.type];
   const move = destinations(s, u, reachable(s, u));
   const danger = new Set<string>();
+  if (!isArmed(u.type)) return { move, danger }; // unarmed: it threatens nothing
   const origins = firesOnlyStill(u.type) ? [posKey(u.x, u.y)] : [...move];
   const maxRange = unitMaxRange(s, u);
   for (const k of origins) {
