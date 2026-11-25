@@ -121,7 +121,7 @@ A support unit that deters and weakens infantry so other units can finish them. 
   | Target | In the open | In cover |
   |---|---|---|
   | Rifleman | 30% | 10% |
-  | Bazooka | 10% | 5% |
+  | Bazooka | 30% | 10% |
   | Mortar Team | 30% | 10% |
   | Enemy Sniper | always destroyed | 90% |
 
