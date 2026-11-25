@@ -142,7 +142,7 @@ A support unit that deters and weakens infantry so other units can finish them. 
 
 A support infantry unit that shells nearby infantry from where it's dug in. It's built to soften a defence, not to win fights on its own.
 
-- **Stats:** costs 4,000, sees 2 tiles, and attacks anything 1–2 squares away. It takes damage like a Rifleman.
+- **Stats:** costs 3,500, sees 2 tiles, and attacks anything 1–2 squares away. It takes damage like a Rifleman.
 - **Sets up to fire:** each turn it can move or attack, not both, even at a target right next to it. It still fires back when attacked from an adjacent tile; from 2 tiles away it can't be hit back by it.
 - **Movement:** 3 over open ground, forest included. A mountain takes its whole turn: it can only climb one from a tile right next to it, before moving. Climbing down is normal. Rivers cost 2, like other infantry.
 - **Captures cities only,** not HQs, factories, ports or airfields.

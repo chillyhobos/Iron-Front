@@ -9,7 +9,7 @@
   "engineer":  { "name": "Engineer",        "label": "ENG", "cost": 5000,  "move": 2, "vision": 2, "moveType": "foot",   "minRange": 1, "maxRange": 1, "canCapture": false,
                  "maxHp": 50, "coverFactor": 0.5, "bridgeKits": 1,
                  "coverTerrain": ["forest", "mountain", "city", "factory", "hq"], "coverDamage": 0.3 },
-  "mortar":    { "name": "Mortar Team",     "label": "MTR", "cost": 4000,  "move": 3, "vision": 2, "moveType": "foot",   "minRange": 1, "maxRange": 2, "canCapture": true,
+  "mortar":    { "name": "Mortar Team",     "label": "MTR", "cost": 3500,  "move": 3, "vision": 2, "moveType": "foot",   "minRange": 1, "maxRange": 2, "canCapture": true,
                  "setUp": true, "captures": ["city"], "terrainCost": { "mountain": 3 } },
   "scout":    { "name": "Scout Car",       "label": "SCT", "cost": 4000,  "move": 8, "vision": 5, "moveType": "tires",  "minRange": 1, "maxRange": 1, "canCapture": false, "fuel": 80 },
   "apc":       { "name": "Armored Carrier", "label": "APC", "cost": 5000,  "move": 6, "vision": 1, "moveType": "treads", "minRange": 1, "maxRange": 1, "canCapture": false, "fuel": 70,
