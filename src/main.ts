@@ -245,13 +245,17 @@ function renderUnitSetOptions(selectId?: string) {
 renderUnitSetOptions();
 unitSetSelect.onchange = () => rememberUnitSetPick(unitSetSelect.value);
 
-// Fog of war checkbox remembers your last choice in this browser.
+// Fog of war and Scarred battlefield checkboxes remember your last choice in this browser.
 const FOG_PREF_KEY = 'iron-front.fogPref';
+const SCARS_PREF_KEY = 'iron-front.scarsPref';
 const fogToggle = $<HTMLInputElement>('fog-toggle');
+const scarsToggle = $<HTMLInputElement>('scars-toggle');
 try {
   fogToggle.checked = localStorage.getItem(FOG_PREF_KEY) === '1';
+  scarsToggle.checked = localStorage.getItem(SCARS_PREF_KEY) === '1';
 } catch {
   fogToggle.checked = false;
+  scarsToggle.checked = false;
 }
 
 // ---------------------------------------------------------------- continue / load
@@ -266,7 +270,7 @@ const autosave = readAutosave();
 if (autosave && autosave.winnerTeam === null) {
   const p = autosave.players[autosave.current];
   $('continue-info').textContent =
-    `${autosave.mapName ?? 'Saved game'}${autosave.fog ? ' · Fog' : ''}${autosave.unitSet ? ` · ${autosave.unitSet.name} units` : ''} · Day ${autosave.day} · ${p.name}'s turn`;
+    `${autosave.mapName ?? 'Saved game'}${autosave.fog ? ' · Fog' : ''}${autosave.scars ? ' · Scarred' : ''}${autosave.unitSet ? ` · ${autosave.unitSet.name} units` : ''} · Day ${autosave.day} · ${p.name}'s turn`;
   $('continue-box').classList.remove('hidden');
   $('continue-btn').onclick = () => startGame(autosave, true);
 }
@@ -302,14 +306,16 @@ $('start-btn').onclick = () => {
     return;
   }
   const fog = fogToggle.checked;
+  const scars = scarsToggle.checked;
   try {
     localStorage.setItem(FOG_PREF_KEY, fog ? '1' : '0');
+    localStorage.setItem(SCARS_PREF_KEY, scars ? '1' : '0');
   } catch {
     // just a convenience
   }
   const stored = listUnitSets().find(s => s.id === unitSetSelect.value);
   const unitSet = stored ? { name: stored.name, units: stored.units, damage: stored.damage } : undefined;
-  startGame(createGame(map, setups, { fog, unitSet }), false);
+  startGame(createGame(map, setups, { fog, scars, unitSet }), false);
 };
 
 // ---------------------------------------------------------------- map editor
@@ -377,7 +383,7 @@ function showLobby(client: OnlineClient, lobby: LobbyInfo) {
   const teamName = (i: number) => (is3v3 ? TEAM_NAMES_3V3[lobby.teams[i]] ?? `Team ${lobby.teams[i]}` : `Team ${lobby.teams[i]}`);
   // Resuming a saved match: each seat is a saved army, shown by its name.
   const armies = lobby.restored?.armies;
-  const details = `${lobby.restored ? `Resuming a saved match · day ${lobby.restored.day} · ` : ''}${escapeHtml(lobby.mapName)}${lobby.fog ? ' · Fog' : ''}${lobby.unitSetName ? ` · ${escapeHtml(lobby.unitSetName)} units` : ''}`;
+  const details = `${lobby.restored ? `Resuming a saved match · day ${lobby.restored.day} · ` : ''}${escapeHtml(lobby.mapName)}${lobby.fog ? ' · Fog' : ''}${lobby.scars ? ' · Scarred battlefield' : ''}${lobby.unitSetName ? ` · ${escapeHtml(lobby.unitSetName)} units` : ''}`;
   const seats = lobby.seats.map((s, i) => {
     const lead = s?.lead !== undefined ? lobby.seats[s.lead] : null;
     const leadName = lead ? lead.name : armies && s?.lead !== undefined ? `${armies[s.lead]}'s player` : '?';
@@ -496,7 +502,7 @@ $('host-btn').onclick = () => {
   const stored = listUnitSets().find(s => s.id === unitSetSelect.value);
   const unitSet = stored ? { name: stored.name, units: stored.units, damage: stored.damage } : undefined;
   showOnlineStatus('Connecting…');
-  newOnlineClient().host({ t: 'host', you: onlineYou(), map, fog: fogToggle.checked, unitSet, teams, rows: seatRows });
+  newOnlineClient().host({ t: 'host', you: onlineYou(), map, fog: fogToggle.checked, scars: scarsToggle.checked, unitSet, teams, rows: seatRows });
 };
 
 $('join-btn').onclick = () => {

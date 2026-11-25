@@ -18,10 +18,11 @@ import { EditorScene, type EditorHost } from './EditorScene';
 const DRAFT_KEY = 'iron-front.editorDraft';
 const HISTORY_LIMIT = 100;
 
-const PAINT_TERRAIN: TerrainId[] = ['plain', 'forest', 'mountain', 'road', 'river', 'bridge', 'sea'];
+const PAINT_TERRAIN: TerrainId[] = ['plain', 'forest', 'mountain', 'road', 'river', 'bridge', 'sea', 'scorched', 'crater'];
 const BUILDINGS: TerrainId[] = ['city', 'factory', 'hq', 'port', 'airfield'];
 const SWATCH: Record<string, string> = {
   plain: '#8cc152', forest: '#2e6b2e', mountain: '#8d6e4c', road: '#cdbf94', river: '#5aa9e6', bridge: '#a07a48', sea: '#3d7cc9',
+  scorched: '#6b5c45', crater: '#7a5a36',
   city: '#bdbdbd', factory: '#9a9a9a', hq: '#f0b429', port: '#5f8fbf', airfield: '#6f7680',
 };
 

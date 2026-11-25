@@ -10,6 +10,8 @@ export type Cue =
   | 'capture-hop'
   /** A building changed hands. */
   | 'captured'
+  /** Scarred battlefield: infantry repaired a damaged city. */
+  | 'city-repaired'
   /** A new player's turn begins (any player: you, a friend, or a CPU). */
   | 'turn-start'
   /** A shot leaves the barrel (detail: the firing unit's type, e.g. 'rifle', 'htank'). */

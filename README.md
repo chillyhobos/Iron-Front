@@ -262,6 +262,19 @@ Tick **Fog of war** on the setup screen before deploying (it remembers your choi
 - Undo still works, but not after a move that spotted a new enemy (so it can't be used to scout for free).
 - CPU players follow the same rules. They only react to what their own units can see.
 
+## Scarred battlefield
+
+An option on the setup screen (and for online games, set by the host), off by default. It works on every map, custom ones included. Explosions leave their mark on the ground:
+
+- **Forests burn:** an explosive hit on a unit in a forest sets it smouldering, and a second one burns it down to **scorched ground**. Scorched ground plays like plains: 1 star of cover, and easy for vehicles to cross. Shelling dug-in Snipers, Mortar Teams or Engineers strips their forest cover over time.
+- **Cities get damaged:** an explosive hit on a unit in a city damages it (cracked walls, blown-out windows), and it pays **half income** until it's repaired. To repair it, have any of your infantry start a turn standing on it (it's fixed before that turn's income). Capturing works as normal; a captured damaged city stays damaged.
+- **Bombs crater the ground:** a Bomber hit on plains or a road leaves a **crater**. Tanks pay 2 to cross it, wheeled vehicles 3, infantry 1, and a cratered road no longer counts as road.
+- **What's explosive:** Artillery and Battleship shells, Rocket Launchers, Bombers, Mortar Teams and tank cannons, on attacks and counterattacks alike. Rifles, SMGs, Snipers, Bazookas, guns and the Gunship's rocket pods don't scar.
+- **Seeing it:** each change pops up on the map ("Burning!", "Scorched!", "City damaged!", "Crater!", "Repaired!"), and the info panel explains any scarred tile. Under fog you only see scars happen where you can see, though the ground itself stays visible like any terrain.
+- **CPU players** cope with the changed ground automatically and park infantry on their own damaged cities to repair them.
+- **Map editor:** Scorched forest and Crater are paintable terrain too, for maps that start already battle-scarred.
+- **Tuning:** `scorched` and `crater` in `src/data/terrain.json`; which weapons scar and how many hits burn a forest (`SCARRING`, `FOREST_BURN_HITS`) in `src/core/rules.ts`.
+
 ## Saving
 
 - **Autosave:** the game saves in your browser after every action. Use **Continue** on the main menu to pick up where you left off, even mid-way through a CPU's turn.

@@ -4,7 +4,7 @@
 import Phaser from 'phaser';
 import { CAPTURE_POINTS, maxHpOf, TERRAIN, UNITS } from '../core/data';
 import {
-  applyAction, boardingTarget, bridgeTargetsFrom, canBuildBridge, canCapture, canSee, demolishTargetsFrom, repairTargetsFrom, currentPlayer, destinations, displayHp, dropTiles, forecast,
+  applyAction, boardingTarget, buildingIncome, FOREST_BURN_HITS, bridgeTargetsFrom, canBuildBridge, canCapture, canSee, demolishTargetsFrom, repairTargetsFrom, currentPlayer, destinations, displayHp, dropTiles, forecast,
   inBounds, pathTo,
   isArmed, posKey, rangeTiles, reachable, startTurn, targetsFrom, threatTiles, tileAt, unitAt, unitById, unitMaxRange, unitMove,
   unitVision, visibleTiles, walkPath,
@@ -858,6 +858,14 @@ export class GameScene extends Phaser.Scene {
       cue('captured');
       this.floatText(e.x, e.y, 'Captured!', '#ffffff');
     }
+    if (e.kind === 'scar') {
+      if (e.change === 'restored') cue('city-repaired');
+      const [text, color] = {
+        burning: ['Burning!', '#ffb066'], scorched: ['Scorched!', '#ff9a5a'], ruined: ['City damaged!', '#ff7b7b'],
+        cratered: ['Crater!', '#e0b070'], restored: ['Repaired!', '#ffffff'],
+      }[e.change];
+      this.floatText(e.x, e.y, text, color);
+    }
     if (e.kind === 'bridge') {
       cue(`bridge-${e.change}`, this.actorType);
       if (e.change === 'destroyed') this.explode(e.x, e.y, 'bridge');
@@ -1158,6 +1166,16 @@ export class GameScene extends Phaser.Scene {
       html += tile.damage
         ? `<br><span style="color:#ff7b7b">Cracked: ${left} more hit${left === 1 ? '' : 's'} from Artillery or Rockets brings it down</span>`
         : '<br>A Bomber hit destroys it; Artillery and Rockets need 2';
+    }
+    // Scarred battlefield marks.
+    const scarNote = (text: string) => `<br><span style="color:#ffb066">${text}</span>`;
+    if (tile.burn) html += scarNote(`Smouldering: ${FOREST_BURN_HITS - tile.burn} more explosive hit burns it down`);
+    if (tile.terrain === 'scorched') html += scarNote('Burnt down: open ground now (it was a forest)');
+    if (tile.terrain === 'crater') html += scarNote('Slows vehicles: tanks pay 2 to cross, wheels 3');
+    if (tile.ruined) {
+      html += scarNote(tile.owner === null
+        ? `Damaged: whoever captures it gets ${buildingIncome(this.s, tile).toLocaleString()} (half) until their infantry starts a turn here`
+        : `Damaged: pays ${buildingIncome(this.s, tile).toLocaleString()} (half) until its owner's infantry starts a turn here`);
     }
     if (td.property) {
       const owner = tile.owner === null ? 'Neutral' : escapeHtml(this.s.players[tile.owner].name);

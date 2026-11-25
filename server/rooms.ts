@@ -63,7 +63,7 @@ const isPerson = (s: Seat | null | undefined): boolean => !!s && !s.cpu && !s.le
 /** What a save file holds (sealed): the whole match, not any one player's fogged view. */
 interface SavedMatch {
   room: {
-    map: MapDef; mode: MapMode; fog: boolean; unitSet?: UnitSetData; teams: number[]; armySetups: SeatSetup[];
+    map: MapDef; mode: MapMode; fog: boolean; scars?: boolean; unitSet?: UnitSetData; teams: number[]; armySetups: SeatSetup[];
     seats: Array<{ kind: 'person' | 'cpu' | 'shared'; cpu?: Difficulty; lead?: number }>;
     hostSeat: number;
   };
@@ -75,6 +75,8 @@ export interface Room {
   map: MapDef;
   mode: MapMode;
   fog: boolean;
+  /** Scarred battlefield (a resumed match keeps whatever its saved state says). */
+  scars: boolean;
   unitSet?: UnitSetData;
   /** Team of each seat; seats take turns in this order. */
   teams: number[];
@@ -179,7 +181,7 @@ export class Rooms {
     if (hostSeat < 0) hostSeat = cpus.findIndex(c => !c);
     if (hostSeat < 0) return conn.send({ t: 'error', message: 'Every seat is a CPU: leave at least one seat for yourself.' });
     const room: Room = {
-      code: this.newCode(), map: msg.map, mode, fog: !!msg.fog, unitSet, teams,
+      code: this.newCode(), map: msg.map, mode, fog: !!msg.fog, scars: !!msg.scars, unitSet, teams,
       seats: Array(teams.length).fill(null),
       armySetups: rows.map((row, i) => cleanSetup(row, `${mode === '3v3' ? 'Army' : 'CPU'} ${i + 1}`)),
       cpuBusy: false, hostToken: '', state: null, touched: this.now(),
@@ -242,7 +244,7 @@ export class Rooms {
       if (validateUnitSet(unitSet).length) return conn.send({ t: 'error', message: "That save's unit set is damaged." });
     }
     const room: Room = {
-      code: this.newCode(), map: r.map, mode: r.mode, fog: r.fog, unitSet, teams: r.teams,
+      code: this.newCode(), map: r.map, mode: r.mode, fog: r.fog, scars: !!(r.scars ?? state.scars), unitSet, teams: r.teams,
       seats: Array(n).fill(null), armySetups: r.armySetups, cpuBusy: false, hostToken: '', state: null,
       touched: this.now(), restored: state, armyNames: state.players.map(p => p.name),
     };
@@ -270,7 +272,7 @@ export class Rooms {
     if (s.winnerTeam !== null) return conn.send({ t: 'error', message: 'The match is over: there is nothing to save.' });
     const saved: SavedMatch = {
       room: {
-        map: room.map, mode: room.mode, fog: room.fog, unitSet: room.unitSet, teams: room.teams, armySetups: room.armySetups,
+        map: room.map, mode: room.mode, fog: room.fog, scars: room.scars, unitSet: room.unitSet, teams: room.teams, armySetups: room.armySetups,
         // Stand-ins aren't saved: absent players get their armies back when the match carries on.
         seats: room.seats.map(seat => {
           if (seat?.cpu) return { kind: 'cpu' as const, cpu: seat.cpu };
@@ -445,7 +447,7 @@ export class Rooms {
         ...(lead >= 0 ? { controller: lead } : {}),
       };
     });
-    room.state = createGame(room.map, setups, { fog: room.fog, unitSet: room.unitSet });
+    room.state = createGame(room.map, setups, { fog: room.fog, scars: room.scars, unitSet: room.unitSet });
     const events = startTurn(room.state);
     room.state.log.push('Online game: good luck!');
     room.touched = this.now();
@@ -664,7 +666,7 @@ export class Rooms {
     const slots = slotsFor(room.map, room.seats.length);
     const online = this.online(room);
     const lobby: LobbyInfo = {
-      code: room.code, mode: room.mode, mapName: room.map.name, fog: room.fog, unitSetName: room.unitSet?.name,
+      code: room.code, mode: room.mode, mapName: room.map.name, fog: room.fog, scars: room.scars, unitSetName: room.unitSet?.name,
       seats: room.seats.map((s, i) => (s ? {
         name: s.you.name, online: online[i],
         ...(s.cpu ? { cpu: s.cpu } : {}),

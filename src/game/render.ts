@@ -139,6 +139,13 @@ function drawTile(g: Phaser.GameObjects.Graphics, s: GameState, x: number, y: nu
         g.fillStyle(0x3f8a3a).fillTriangle(px + ox, py + oy, px + ox - w, py + oy + h, px + ox - w * 0.1, py + oy + h);
         g.fillStyle(0x245624).fillTriangle(px + ox, py + oy + h * 0.35, px + ox - w * 0.8, py + oy + h * 0.75, px + ox + w * 0.8, py + oy + h * 0.75);
       }
+      if (t.burn) drawSmoulder(g, px, py, r);
+      break;
+    case 'scorched':
+      drawScorched(g, px, py, r);
+      break;
+    case 'crater':
+      drawCrater(g, px, py, r);
       break;
     case 'mountain':
       // A smaller peak behind and a tall one in front, lit from the left, with snow caps.
@@ -205,6 +212,7 @@ function drawTile(g: Phaser.GameObjects.Graphics, s: GameState, x: number, y: nu
     case 'factory':
     case 'hq':
       drawBuilding(g, s, px, py, t);
+      if (t.ruined) drawRuins(g, px, py);
       break;
     case 'port':
       drawPort(g, s, px, py, t);
@@ -219,6 +227,53 @@ function drawTile(g: Phaser.GameObjects.Graphics, s: GameState, x: number, y: nu
     g.fillStyle(0xffffff).fillRect(px + 4, py + T - 6, (T - 8) * (1 - t.capture / CAPTURE_POINTS), 4);
   }
   g.lineStyle(1, 0x000000, 0.12).strokeRect(px, py, T, T);
+}
+
+// ---------------------------------------------------------------- scarred battlefield
+
+/** A forest that's been hit once: scorched patches and a thin column of smoke. */
+function drawSmoulder(g: Phaser.GameObjects.Graphics, px: number, py: number, r: number) {
+  g.fillStyle(0x3b2f22, 0.55).fillEllipse(px + 14 + r * 10, py + 30, 14, 5);
+  g.fillStyle(0xff8a2a, 0.9).fillCircle(px + 16 + r * 8, py + 29, 1.4).fillCircle(px + 22 + r * 6, py + 31, 1.1);
+  g.fillStyle(0x6a6a6a, 0.55).fillCircle(px + 26, py + 10, 3.5).fillCircle(px + 29, py + 5, 2.6).fillCircle(px + 31, py + 1.5, 1.8);
+}
+
+/** A burnt-out forest: ash-grey ground, charred stumps and a few dying embers. */
+function drawScorched(g: Phaser.GameObjects.Graphics, px: number, py: number, r: number) {
+  g.fillStyle(0x6b5c45).fillRect(px, py, T, T);
+  g.fillStyle(0x56493a).fillEllipse(px + 12 + r * 6, py + 14, 18, 9).fillEllipse(px + 27 - r * 5, py + 30, 20, 9);
+  g.fillStyle(0x8a8172, 0.7).fillEllipse(px + 28, py + 12, 9, 4).fillEllipse(px + 9, py + 31, 8, 3); // ash
+  for (const [ox, oy, h] of [[11, 6, 15], [28, 8, 12], [19, 19, 13], [8 + r * 4, 22, 9]]) {
+    // A stump: a dark trunk with a snapped, jagged top and a stub of a branch.
+    g.fillStyle(0x2a2119).fillRect(px + ox - 1.5, py + oy, 3, h);
+    g.fillTriangle(px + ox - 1.5, py + oy, px + ox + 1.5, py + oy, px + ox + 0.5, py + oy - 3);
+    g.lineStyle(1.5, 0x2a2119, 1).lineBetween(px + ox, py + oy + h * 0.4, px + ox + 4, py + oy + h * 0.2);
+  }
+  g.fillStyle(0xff7a1a, 0.85).fillCircle(px + 15 + r * 10, py + 34, 1.2).fillCircle(px + 31 - r * 6, py + 20, 1);
+}
+
+/** A bomb crater: a dark pit with a raised rim of thrown-up earth. */
+function drawCrater(g: Phaser.GameObjects.Graphics, px: number, py: number, r: number) {
+  const cx = px + T / 2 + (r - 0.5) * 4, cy = py + T / 2 + 2;
+  g.fillStyle(0x7a5a36).fillEllipse(cx, cy, 30, 20); // thrown-up earth
+  g.fillStyle(0x4a3520).fillEllipse(cx, cy + 1, 22, 13); // the pit
+  g.fillStyle(0x2e2215).fillEllipse(cx + 1, cy + 2, 13, 7);
+  g.fillStyle(0x9a7448);
+  for (const [ox, oy] of [[-15, -6], [13, -9], [16, 7], [-12, 10], [2, -12]]) g.fillCircle(cx + ox, cy + oy, 1.8); // clods
+}
+
+/** A shelled city: broken windows, cracks down the walls and drifting smoke. */
+function drawRuins(g: Phaser.GameObjects.Graphics, px: number, py: number) {
+  g.fillStyle(0x1e1e1e);
+  for (const [wx, wy] of [[23, 12], [27, 20], [9, 26]]) g.fillRect(px + wx, py + wy, 3, 4); // windows blown out
+  g.lineStyle(1.5, 0x1e1e1e, 1);
+  for (const crack of [[[24, 8], [26, 14], [23, 19], [26, 25]], [[8, 16], [11, 21], [8, 25]]]) {
+    g.beginPath();
+    crack.forEach(([cx, cy], i) => (i ? g.lineTo(px + cx, py + cy) : g.moveTo(px + cx, py + cy)));
+    g.strokePath();
+  }
+  g.fillStyle(0x4a4a4a, 0.7).fillCircle(px + 30, py + 5, 4).fillCircle(px + 34, py + 1, 3);
+  g.fillStyle(0x3b2f22, 0.6).fillEllipse(px + 14, py + 37, 14, 4); // rubble at the foot
 }
 
 function drawBuilding(g: Phaser.GameObjects.Graphics, s: GameState, px: number, py: number, t: Tile) {

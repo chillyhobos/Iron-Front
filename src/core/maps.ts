@@ -93,6 +93,8 @@ export function newStats() {
 export interface GameOptions {
   /** Fog of war: players only see what their team can see. */
   fog?: boolean;
+  /** Scarred battlefield: explosions burn forests, damage cities and crater the ground. */
+  scars?: boolean;
   /** Custom unit set (missing = Standard). */
   unitSet?: UnitSetData;
 }
@@ -163,6 +165,7 @@ export function createGame(mapOrId: MapDef | string, setups: PlayerSetup[], opti
     mapName: map.name,
     mode: mapMode(map),
     fog: !!options.fog,
+    scars: !!options.scars,
     ...(options.unitSet ? { unitSet: options.unitSet } : {}),
   };
 }

@@ -7,6 +7,7 @@ import {
 } from './data';
 import type { Action, ActionResult, Command, GameEvent, GameState, Pos, Tile, Unit } from './state';
 import { MODES } from './maps';
+import { weaponOf, type WeaponStyle } from './timing';
 import {
   bonus, canUsePower, captureBonus, commanderOf, powerCharge, revealsAll, seesIntoForests, unitCost,
 } from './commanders';
@@ -527,13 +528,49 @@ function collapseBridge(s: GameState, x: number, y: number, by: number): GameEve
   return events;
 }
 
+// ---------------------------------------------------------------- scarred battlefield
+
+/** Weapons that scar the ground: shells, rockets, bombs, mortar rounds and tank cannons. */
+const SCARRING = new Set<WeaponStyle>(['shell', 'rockets', 'bombs', 'mortar', 'cannon']);
+/** Explosive hits a forest takes before it burns down to scorched ground. */
+export const FOREST_BURN_HITS = 2;
+
+/**
+ * Scarred battlefield games: an explosive hit on a unit at (x, y) marks the ground there.
+ * Forests burn (scorched after FOREST_BURN_HITS hits), cities are damaged (half income until
+ * repaired), and bombs crater plains and roads. Does nothing with the option off.
+ */
+function scar(s: GameState, attacker: UnitType, x: number, y: number): GameEvent[] {
+  if (!s.scars || !SCARRING.has(weaponOf(attacker))) return [];
+  const t = tileAt(s, x, y);
+  if (t.terrain === 'forest') {
+    t.burn = (t.burn ?? 0) + 1;
+    if (t.burn < FOREST_BURN_HITS) return [{ kind: 'scar', x, y, change: 'burning' }];
+    t.terrain = 'scorched';
+    delete t.burn;
+    s.log.push('A forest burnt down.');
+    return [{ kind: 'scar', x, y, change: 'scorched' }];
+  }
+  if (t.terrain === 'city' && !t.ruined) {
+    t.ruined = true;
+    s.log.push('A city was damaged: it pays half until repaired.');
+    return [{ kind: 'scar', x, y, change: 'ruined' }];
+  }
+  if (weaponOf(attacker) === 'bombs' && (t.terrain === 'plain' || t.terrain === 'road')) {
+    t.terrain = 'crater';
+    return [{ kind: 'scar', x, y, change: 'cratered' }];
+  }
+  return [];
+}
+
 // ---------------------------------------------------------------- turns
 
-/** Funds a building pays its owner each turn (3 vs 3 cities pay 800, everything else 1,000). */
+/** Funds a building pays its owner each turn (3 vs 3 cities pay 800, everything else 1,000; a damaged city half). */
 export function buildingIncome(s: GameState, tile: Tile): number {
   // Saves from before the mode was stored: 6 armies can only be a 3 vs 3 game.
   const mode = s.mode ?? (s.players.length > 4 ? '3v3' : 'standard');
-  return MODES[mode].income?.[tile.terrain] ?? INCOME_PER_PROPERTY;
+  const full = MODES[mode].income?.[tile.terrain] ?? INCOME_PER_PROPERTY;
+  return tile.ruined ? Math.floor(full / 2) : full;
 }
 
 /** Total funds a player collects at the start of their turn. */
@@ -550,6 +587,15 @@ export function startTurn(s: GameState): GameEvent[] {
   if (p.powerActive) {
     p.powerActive = false; // powers last until your next turn
     s.log.push(`${p.name}'s ${commanderOf(s, p.id)?.power.name ?? 'power'} wore off.`);
+  }
+  // Scarred battlefield: our infantry standing on our own damaged city repairs it (before income).
+  const repairs: GameEvent[] = [];
+  for (const u of s.units) {
+    const t = tileAt(s, u.x, u.y);
+    if (u.owner !== p.id || !t.ruined || t.owner !== p.id || familyOf(u.type) !== 'infantry') continue;
+    delete t.ruined;
+    s.log.push(`${p.name}'s ${UNITS[u.type].name} repaired a city.`);
+    repairs.push({ kind: 'scar', x: u.x, y: u.y, change: 'restored' });
   }
   const income = incomeOf(s, p.id);
   p.funds += income;
@@ -591,7 +637,7 @@ export function startTurn(s: GameState): GameEvent[] {
     }
   }
   s.log.push(`Day ${s.day}: ${p.name}'s turn (+${income} funds).`);
-  events.push({ kind: 'turn', player: p.id, day: s.day });
+  events.push({ kind: 'turn', player: p.id, day: s.day }, ...repairs);
 
   // Out of fuel: aircraft crash, ships sink (cargo is lost with them).
   for (const u of crashed) {
@@ -825,6 +871,7 @@ export function applyAction(s: GameState, a: Action): ActionResult {
     chargeMeters(s, me.id, target, deal);
     events.push({ kind: 'damage', unitId: target.id, amount: deal, x: target.x, y: target.y });
     s.log.push(`${UNITS[u.type].name} hit ${UNITS[target.type].name} for ${deal}%.`);
+    events.push(...scar(s, u.type, target.x, target.y));
     if (target.hp <= 0) {
       events.push(...destroyUnit(s, target, me.id));
     } else if (canCounter(target, u.type, dist(u, target))) {
@@ -834,6 +881,7 @@ export function applyAction(s: GameState, a: Action): ActionResult {
       s.players[target.owner].stats.damageDealt += back;
       chargeMeters(s, target.owner, u, back);
       events.push({ kind: 'damage', unitId: u.id, amount: back, x: u.x, y: u.y });
+      events.push(...scar(s, target.type, u.x, u.y));
       if (u.hp <= 0) events.push(...destroyUnit(s, u, target.owner));
     }
   }

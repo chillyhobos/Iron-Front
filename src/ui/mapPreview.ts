@@ -12,7 +12,7 @@ const TILE = 8;
 
 const GROUND: Partial<Record<TerrainId, string>> = {
   plain: '#8cc65a', forest: '#3f7f3a', mountain: '#9a7a56', road: '#d2c59b',
-  sea: '#3a78c4', river: '#4a97df', bridge: '#a07a48',
+  sea: '#3a78c4', river: '#4a97df', bridge: '#a07a48', scorched: '#6b5c45', crater: '#7a5a36',
 };
 const NEUTRAL = '#c9ced6';
 const OUTLINE = 'rgba(0, 0, 0, 0.45)';

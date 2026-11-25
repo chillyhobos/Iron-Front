@@ -223,6 +223,8 @@ function bestOrderFor(s: GameState, u: Unit, ctx: Context): Scored {
     if (ranged && !indirect && ctx.adjacentToEnemy(x, y)) dist += 2;
     let base = Number.isFinite(dist) ? -dist * step : -5000;
     base += stars * p.cover;
+    // Scarred battlefield: infantry parked on our own damaged city repair it next turn (full income again).
+    if (tile.ruined && tile.owner === u.owner && familyOf(u.type) === 'infantry') base += 600;
     // Engineers dug into cover take only a fraction of each hit, so cover is where they're safe.
     const dugIn = def.coverDamage !== undefined && !!def.coverTerrain?.includes(tile.terrain);
     const risk = dugIn

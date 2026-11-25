@@ -43,6 +43,7 @@ const FOOTSTEP_SOUNDS: Partial<Record<string, SoundName>> = {
   road: 'step-hard', city: 'step-hard', factory: 'step-hard', hq: 'step-hard', port: 'step-hard', airfield: 'step-hard',
   bridge: 'step-bridge',
   river: 'step-water',
+  scorched: 'step-gravel', crater: 'step-gravel', // ash and loose earth crunch underfoot
 };
 
 /**
@@ -196,6 +197,7 @@ class SoundEngine {
     // A unit destroyed (a bridge going down has its own sound, below).
     if (c === 'explosion' && detail !== 'bridge') this.play('explosion');
     if (c === 'captured') this.play('capture-jingle');
+    if (c === 'city-repaired') this.play('bridge-repair'); // the same wrench-and-hammer sound as a bridge repair
     if (c === 'turn-start') this.play('turn-chime');
     if (c === 'footstep' && detail) {
       const name = FOOTSTEP_SOUNDS[detail];

@@ -14,6 +14,10 @@ export interface Tile {
   capture: number;
   /** Bridges only: damage taken so far (cracked when above 0). */
   damage?: number;
+  /** Scarred battlefield: explosive hits a forest has taken (it burns down to scorched ground at FOREST_BURN_HITS). */
+  burn?: number;
+  /** Scarred battlefield: a shelled city, paying half until its owner's infantry repairs it. */
+  ruined?: boolean;
 }
 
 export interface Unit {
@@ -91,6 +95,8 @@ export interface GameState {
   mode?: 'standard' | '3v3';
   /** Fog of war: players only see what their team's units and buildings can see. */
   fog?: boolean;
+  /** Scarred battlefield: explosions burn forests, damage cities and crater the ground. */
+  scars?: boolean;
   /** Custom unit stats and damage for this game (missing = Standard). Apply with applyUnitSet(). */
   unitSet?: UnitSetData;
 }
@@ -127,6 +133,8 @@ export type GameEvent =
   | { kind: 'captured'; x: number; y: number; player: number }
   /** A bridge at x, y was built, cracked by gunfire, repaired, or destroyed. */
   | { kind: 'bridge'; x: number; y: number; change: 'built' | 'cracked' | 'repaired' | 'destroyed' }
+  /** Scarred battlefield: a forest caught fire or burnt down, a city was damaged or repaired, or a bomb left a crater. */
+  | { kind: 'scar'; x: number; y: number; change: 'burning' | 'scorched' | 'ruined' | 'restored' | 'cratered' }
   | { kind: 'eliminated'; player: number }
   | { kind: 'turn'; player: number; day: number }
   | { kind: 'power'; player: number }

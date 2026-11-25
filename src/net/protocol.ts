@@ -62,7 +62,7 @@ export type ClientMessage =
    * and commander are also used if the host turns that seat into a CPU later. The host
    * takes the first seat that isn't a CPU.
    */
-  | { t: 'host'; you: SeatSetup; map: MapDef; fog: boolean; unitSet?: UnitSetData; teams: number[]; rows?: SeatRow[] }
+  | { t: 'host'; you: SeatSetup; map: MapDef; fog: boolean; scars?: boolean; unitSet?: UnitSetData; teams: number[]; rows?: SeatRow[] }
   | { t: 'join'; code: string; you: SeatSetup }
   /** Open a lobby to carry on a saved match. Friends join with the new code; their old seats wait for them. */
   | { t: 'hostSave'; you: SeatSetup; file: OnlineSaveFile }
@@ -96,6 +96,8 @@ export interface LobbyInfo {
   mode: MapMode;
   mapName: string;
   fog: boolean;
+  /** Scarred battlefield (missing from older servers = off). */
+  scars?: boolean;
   unitSetName?: string;
   /**
    * null = empty. CPU seats are always online. lead = the seat of the person who also
