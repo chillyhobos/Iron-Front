@@ -41,6 +41,11 @@ interface Selection {
   threats: Set<number>;
 }
 
+/** Waiting units' hop: once every HOP_EVERY ms, HOP_HEIGHT px up and back down in HOP_MS. */
+const HOP_EVERY = 1600;
+const HOP_MS = 360;
+const HOP_HEIGHT = 3;
+
 export class GameScene extends Phaser.Scene {
   private s!: GameState;
   private hud!: Hud;
@@ -61,6 +66,11 @@ export class GameScene extends Phaser.Scene {
   private actorType: UnitType | undefined;
   private pendingActor: UnitType | undefined;
   private sprites = new Map<number, Phaser.GameObjects.Container>();
+  /** Bodies of our units still waiting for orders: they hop now and then so none get missed. */
+  private ready: Array<{ body: Phaser.GameObjects.Graphics; baseY: number; phase: number }> = [];
+  private readyHopping = false;
+  /** People who ask their device for less motion get no hopping (the greyed-out "done" units still tell them apart). */
+  private readonly reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
   private mode: Mode = 'locked';
   private sel: Selection | null = null;
@@ -298,7 +308,8 @@ export class GameScene extends Phaser.Scene {
     this.handleEvents(events);
   }
 
-  update() {
+  update(time: number) {
+    this.hopReadyUnits(time);
     // Keep the order menu next to its tile while the map is scrolled or zoomed.
     if (this.mode === 'menu' && this.pending) {
       const scr = this.tileToScreen(this.pending.to.x + 1, this.pending.to.y);
@@ -990,11 +1001,40 @@ export class GameScene extends Phaser.Scene {
   private drawUnits() {
     this.unitLayer.removeAll(true);
     this.sprites.clear();
+    this.ready = [];
+    // Units that can still act this turn, if we're the one giving their orders.
+    const commanding = !currentPlayer(this.s).ai && this.myTurn();
     for (const u of this.s.units) {
       if (!this.seesUnit(u)) continue;
       const c = makeUnitSprite(this, this.s, u);
       this.unitLayer.add(c);
       this.sprites.set(u.id, c);
+      if (commanding && u.owner === this.s.current && !u.acted) {
+        const body = c.getByName('body') as Phaser.GameObjects.Graphics;
+        // A small delay by position, so the hops ripple across the board in a wave.
+        this.ready.push({ body, baseY: body.y, phase: ((u.x + u.y) % 8) * 90 });
+      }
+    }
+    this.readyHopping = false;
+  }
+
+  /**
+   * While we're picking which unit to move next, units still waiting for orders give a
+   * small hop every HOP_EVERY ms. Cheap: the board is redrawn every frame anyway, and this
+   * only moves each waiting unit's body by a couple of pixels (its shadow stays put).
+   */
+  private hopReadyUnits(time: number) {
+    const on = this.mode === 'idle' && !this.reducedMotion && this.ready.length > 0;
+    if (!on) {
+      if (this.readyHopping) for (const r of this.ready) r.body.y = r.baseY; // settle
+      this.readyHopping = false;
+      return;
+    }
+    this.readyHopping = true;
+    for (const r of this.ready) {
+      const t = (time + r.phase) % HOP_EVERY;
+      // Up and down in HOP_MS, then still for the rest of the cycle.
+      r.body.y = r.baseY - (t < HOP_MS ? Math.sin((Math.PI * t) / HOP_MS) * HOP_HEIGHT : 0);
     }
   }
 

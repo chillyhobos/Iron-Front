@@ -302,12 +302,17 @@ export function makeUnitSprite(scene: Phaser.Scene, s: GameState, u: Unit) {
   const def = UNITS[u.type];
   const color = s.players[u.owner].color;
   const c = scene.add.container(u.x * T + T / 2, u.y * T + T / 2);
-  const g = scene.add.graphics();
   const air = def.moveType === 'air';
   const ship = def.moveType === 'ship';
-  // Aircraft fly above a small, faint shadow; ships sit in the water.
-  if (air) g.fillStyle(0x000000, 0.22).fillEllipse(0, 16, 24, 5);
-  else if (!ship) g.fillStyle(0x000000, 0.28).fillEllipse(0, 15, 32, 7);
+  // Aircraft fly above a small, faint shadow; ships sit in the water. The shadow is its own
+  // object so the body can hop on its own (units waiting for orders bob; see GameScene).
+  if (!ship) {
+    const shadow = scene.add.graphics();
+    if (air) shadow.fillStyle(0x000000, 0.22).fillEllipse(0, 16, 24, 5);
+    else shadow.fillStyle(0x000000, 0.28).fillEllipse(0, 15, 32, 7);
+    c.add(shadow);
+  }
+  const g = scene.add.graphics().setName('body');
   drawUnit(g, u.type, color, facingOf(s, u.owner));
   if (air) g.setY(-2);
   c.add(g);
