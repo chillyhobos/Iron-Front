@@ -120,9 +120,9 @@ A support unit that deters and weakens infantry so other units can finish them. 
 
   | Target | In the open | In cover |
   |---|---|---|
-  | Rifleman | 20% | 10% |
+  | Rifleman | 30% | 10% |
   | Bazooka | 10% | 5% |
-  | Mortar Team | 20% | 10% |
+  | Mortar Team | 30% | 10% |
   | Enemy Sniper | always destroyed | 90% |
 
 - **Steady aim:** it's the only unit that deals full damage no matter how hurt it is.
@@ -182,7 +182,7 @@ A weak support unit that builds and blows up bridges, so you control where vehic
     | Heavy Tank / Flak Gun / Bomber | 31% / 31% / 33% | 2 HP |
 
     Damaged attackers hit for less, as usual. Snipers keep their own numbers (10% in cover). Hovering over an Engineer in cover shows "In cover: takes 30% damage". Roads, rivers, bridges, ports and airfields aren't cover. CPU Engineers count on cover too: they treat a dug-in tile as much safer.
-  - **No capturing.** Snipers hit it like a Rifleman (20% in the open, 10% in cover).
+  - **No capturing.** Snipers hit it like a Rifleman (30% in the open, 10% in cover).
 - **Bridge kit:** each Engineer carries one kit. Using it either builds or demolishes one bridge.
   - **Build bridge:** move the Engineer into a river and choose **Build bridge**. That tile becomes a bridge that every ground unit can drive over (1 move point, like a road). Ships can't pass under bridges.
   - **Blow up bridge:** move the Engineer next to any bridge (yours, an enemy's or one that came with the map), choose **Blow up bridge**, and click the bridge highlighted in orange. The tile turns back into river. This works from the bank or while wading in the river beside the bridge, never from on top of it, since anyone on it dies.

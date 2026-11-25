@@ -4,7 +4,7 @@
   "sniper":    { "name": "Sniper",          "label": "SNP", "cost": 4000,  "move": 2, "vision": 3, "moveType": "boot",   "minRange": 1, "maxRange": 3, "canCapture": false,
                  "camouflage": true, "fullDamageAtAnyHp": true,
                  "coverTerrain": ["forest", "mountain", "city", "factory", "hq"],
-                 "precision":      { "open": { "rifle": 20, "bazooka": 10, "sniper": 100, "engineer": 20, "mortar": 20 }, "cover": { "rifle": 10, "bazooka": 5, "sniper": 90, "engineer": 10, "mortar": 10 } },
+                 "precision":      { "open": { "rifle": 30, "bazooka": 10, "sniper": 100, "engineer": 30, "mortar": 30 }, "cover": { "rifle": 10, "bazooka": 5, "sniper": 90, "engineer": 10, "mortar": 10 } },
                  "incomingDamage": { "open": { "infantry": 100, "vehicle": 100 },           "cover": { "infantry": 90, "vehicle": 100 } } },
   "engineer":  { "name": "Engineer",        "label": "ENG", "cost": 5000,  "move": 2, "vision": 2, "moveType": "foot",   "minRange": 1, "maxRange": 1, "canCapture": false,
                  "maxHp": 50, "coverFactor": 0.5, "bridgeKits": 1,
