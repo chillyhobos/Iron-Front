@@ -505,6 +505,15 @@ export function bazookaShot(rate: number, seed: number) {
   });
 }
 
+/** Mortar Team: the hollow "thoonk" of a round leaving the tube, ringing a moment, with a puff of air. */
+export function mortarShot(rate: number, seed: number) {
+  const thump = band(60, 500, rate), puff = band(300, 1500, rate), pop = glider(rate);
+  const ringHz = 400 + (seed % 3) * 25;
+  return shape(rate, seed, 0.35, 4000, (t, n) =>
+    pop(drop(t, 150, 85, 30)) * env(t, 0.002, 22) * 0.9 + thump(n) * env(t, 0.0015, 35) * 2.4
+    + Math.sin(2 * Math.PI * ringHz * t) * env(t, 0.003, 24) * 0.35 + puff(n) * env(t, 0.004, 28) * 0.6);
+}
+
 /** Tank cannon: a punchy boom with a short crack and a rolling tail (pitched per tank). */
 export function cannonShot(rate: number, seed: number) {
   const blast = band(60, 1200, rate), crack = band(1500, 5000, rate), rumble = band(30, 200, rate), pop = glider(rate);
@@ -626,6 +635,7 @@ export const RECIPES = {
   'hop-land': { make: hopLand, variants: 4 },
   'sniper-shot': { make: sniperShot, variants: 3 },
   'bazooka-shot': { make: bazookaShot, variants: 3 },
+  'mortar-shot': { make: mortarShot, variants: 3 },
   'cannon-shot': { make: cannonShot, variants: 3 },
   'gun-burst': { make: gunBurst, variants: 4 },
   'shell-shot': { make: shellShot, variants: 2 },

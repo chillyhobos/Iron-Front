@@ -30,6 +30,7 @@ const LOOKS: Record<WeaponStyle, Look> = {
   smg: { tex: STREAK, tint: 0xfff0b8, scaleX: 0.65, scaleY: 0.6, flash: 0.7, impact: 0.55, recoil: 1 },
   sniper: { tex: STREAK, tint: 0xffffff, scaleX: 1.7, scaleY: 0.6, flash: 1.2, impact: 0.9, recoil: 2 },
   bazooka: { tex: STREAK, tint: 0xff9a3c, scaleX: 1.1, scaleY: 1.4, flash: 1.1, impact: 1.4, recoil: 2 },
+  mortar: { tex: DOT, tint: 0x4b5144, scaleX: 0.6, scaleY: 0.75, flash: 1, impact: 1.5, recoil: 1 },
   cannon: { tex: DOT, tint: 0xfff1c0, scaleX: 0.8, scaleY: 0.8, flash: 1.5, impact: 1.6, recoil: 3 },
   guns: { tex: STREAK, tint: 0xffd060, scaleX: 0.9, scaleY: 0.7, flash: 0.9, impact: 0.7, recoil: 1 },
   shell: { tex: DOT, tint: 0xfff1c0, scaleX: 0.9, scaleY: 0.9, flash: 1.6, impact: 2, recoil: 3 },

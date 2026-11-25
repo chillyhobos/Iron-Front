@@ -2,8 +2,8 @@
 // server to referee online games. All changes go through applyAction().
 
 import {
-  BLOCKED, CAPTURE_POINTS, carries, DAMAGE, familyOf, fullSupplies, INCOME_PER_PROPERTY, MAX_HP, maxHpOf, MAX_UNITS, supplyClassOf,
-  TERRAIN, UNITS, type UnitType,
+  BLOCKED, CAPTURE_POINTS, capturesTerrain, carries, DAMAGE, familyOf, firesOnlyStill, fullSupplies, INCOME_PER_PROPERTY, MAX_HP, maxHpOf, MAX_UNITS,
+  moveCost, supplyClassOf, TERRAIN, UNITS, type UnitType,
 } from './data';
 import type { Action, ActionResult, Command, GameEvent, GameState, Pos, Tile, Unit } from './state';
 import { MODES } from './maps';
@@ -164,7 +164,7 @@ export function reachable(s: GameState, u: Unit): Reach {
       const ny = cur.y + dy;
       if (!inBounds(s, nx, ny)) continue;
       const blocker = unitAt(s, nx, ny);
-      let step = TERRAIN[tileAt(s, nx, ny).terrain].cost[def.moveType];
+      let step = moveCost(u.type, tileAt(s, nx, ny).terrain);
       // A friendly transport on water (e.g. a Lander by the shore) can be boarded
       // from an adjacent tile: one step onto it, and the move ends there.
       let boardOnly = false;
@@ -221,7 +221,7 @@ export function dropTiles(s: GameState, transport: Unit, x: number, y: number, c
     const nx = x + dx;
     const ny = y + dy;
     if (!inBounds(s, nx, ny)) continue;
-    if (TERRAIN[tileAt(s, nx, ny).terrain].cost[UNITS[cargo.type].moveType] >= BLOCKED) continue;
+    if (moveCost(cargo.type, tileAt(s, nx, ny).terrain) >= BLOCKED) continue;
     if (taken.some(p => p.x === nx && p.y === ny)) continue;
     // (If the transport itself is standing there now, that tile is free once it moves.)
     const other = unitAt(s, nx, ny);
@@ -263,12 +263,13 @@ export function walkPath(s: GameState, u: Unit, path: Pos[]): { stop: number; tr
 // ---------------------------------------------------------------- combat
 
 /**
- * Enemy units this unit could hit from (x, y). Indirect units can't move and
- * fire. Under fog, only targets the team can see (after the move) count.
+ * Enemy units this unit could hit from (x, y). Indirect units (and units that set
+ * up, like the Mortar Team) can't move and fire. Under fog, only targets the team
+ * can see (after the move) count.
  */
 export function targetsFrom(s: GameState, u: Unit, x: number, y: number, moved: boolean): Unit[] {
   const def = UNITS[u.type];
-  if (moved && def.minRange > 1) return [];
+  if (moved && firesOnlyStill(u.type)) return [];
   if (outOfAmmo(u)) return [];
   const maxRange = unitMaxRange(s, u);
   const team = teamOf(s, u.owner);
@@ -280,12 +281,12 @@ export function targetsFrom(s: GameState, u: Unit, x: number, y: number, moved: 
   });
 }
 
-/** Every tile this unit could attack next turn (move + fire for direct units, fixed range for indirect). */
+/** Every tile this unit could attack next turn (move + fire for direct units, fixed range for indirect or set-up ones). */
 export function threatTiles(s: GameState, u: Unit): { move: Set<string>; danger: Set<string> } {
   const def = UNITS[u.type];
   const move = destinations(s, u, reachable(s, u));
   const danger = new Set<string>();
-  const origins = def.minRange > 1 ? [posKey(u.x, u.y)] : [...move];
+  const origins = firesOnlyStill(u.type) ? [posKey(u.x, u.y)] : [...move];
   const maxRange = unitMaxRange(s, u);
   for (const k of origins) {
     const [ox, oy] = k.split(',').map(Number);
@@ -380,7 +381,7 @@ export function forecast(s: GameState, attacker: Unit, from: Pos, defender: Unit
 
 export function canCapture(s: GameState, u: Unit, x: number, y: number): boolean {
   const tile = tileAt(s, x, y);
-  if (!UNITS[u.type].canCapture || !TERRAIN[tile.terrain].property) return false;
+  if (!capturesTerrain(u.type, tile.terrain)) return false;
   return tile.owner === null || !areAllies(s, tile.owner, u.owner);
 }
 
@@ -442,7 +443,7 @@ export function repairTargetsFrom(s: GameState, u: Unit, x: number, y: number): 
  */
 export function bridgeTargetsFrom(s: GameState, u: Unit, x: number, y: number, moved: boolean): Pos[] {
   const def = UNITS[u.type];
-  if (!def.bridgeDamage || (moved && def.minRange > 1) || outOfAmmo(u)) return [];
+  if (!def.bridgeDamage || (moved && firesOnlyStill(u.type)) || outOfAmmo(u)) return [];
   const maxRange = unitMaxRange(s, u);
   const out: Pos[] = [];
   for (let dy = -maxRange; dy <= maxRange; dy++) {

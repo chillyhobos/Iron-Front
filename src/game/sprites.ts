@@ -121,6 +121,18 @@ const DRAW: Partial<Record<UnitType, Drawer>> = {
     p.bar(15, -1, 17, 6, 1, METAL_DARK, false).bar(15, -1, 13, 6, 1, METAL_DARK, false);
   },
 
+  mortar(p, c) {
+    soldier(p, c, { x: -8, crouch: true });
+    // The mortar: a stubby tube angled up on a bipod, standing on a base plate.
+    p.ellipse(8, 14.5, 14, 3.5, METAL_DARK);
+    p.bar(11, -1, 8, 13, 1.2, METAL, false).bar(11, -1, 15, 13, 1.2, METAL, false); // bipod legs
+    p.bar(5, 13, 14, -6, 4.5, 0x4f5a2a); // tube
+    p.circle(14, -6, 2.6, 0x3d4620); // muzzle
+    p.circle(-1, 0, 2.2, SKIN); // hand steadying the tube
+    // A spare round at the crew's feet.
+    p.rect(-19, 9, 4, 6, 0x6b7056, 2).poly([[-19, 9], [-17, 5.5], [-15, 9]], 0x8a8f72, false);
+  },
+
   engineer(p, c) {
     soldier(p, c, { helmet: 0xf2c230 });
     p.rect(-6, -2, 12, 2.5, 0xff9f1c, 0, false); // hi-vis stripe

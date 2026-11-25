@@ -16,7 +16,7 @@ It installs and builds the game the first time (a minute or two), starts it, and
 **Sound:** sound effects are original and made in code too, so there are no audio files. They play in step with the animations, on every player's screen:
 - **Rifleman:** a punchy, bassy automatic-rifle crack with a sci-fi edge, three shots per attack in time with its tracers.
 - **Engineer:** a lighter, faster SMG: a higher, raspy rattle with a bolt clack, four quick shots per attack. Blowing up a bridge gives a short, crisp blast, and repairing one gives a wrench ratchet and two clanks on steel.
-- **Every other weapon:** each unit sounds like what it fires, shot by shot. The Sniper fires one sharp crack that echoes away. The Bazooka and the Gunship's rocket pods go "fwoomp" and "fwip". Tanks fire a punchy cannon boom (the Heavy Tank deeper than the Light Tank). The Scout Car, Flak Gun, Interceptor and Cruiser fire rapid "dut-dut" guns, each at its own pitch. Artillery and Battleships give a deep "thoom" and the shell whistles down. Rocket Launchers hiss off a salvo, Missile Launchers roar, and Bombers clunk their bombs loose with a falling whistle.
+- **Every other weapon:** each unit sounds like what it fires, shot by shot. The Sniper fires one sharp crack that echoes away. The Bazooka and the Gunship's rocket pods go "fwoomp" and "fwip". The Mortar Team's rounds leave the tube with a hollow "thoonk". Tanks fire a punchy cannon boom (the Heavy Tank deeper than the Light Tank). The Scout Car, Flak Gun, Interceptor and Cruiser fire rapid "dut-dut" guns, each at its own pitch. Artillery and Battleships give a deep "thoom" and the shell whistles down. Rocket Launchers hiss off a salvo, Missile Launchers roar, and Bombers clunk their bombs loose with a falling whistle.
 - **Hits and explosions:** bullets land with a soft, dusty puff and anything explosive with a rounded boom. A destroyed unit goes up in a big, soft, rolling explosion, and so does a bridge a Bomber knocks down. All of them are punchy but rounded, never harsh.
 - **Capture jingle:** when a building changes hands, a short, cheerful four-note jingle plays.
 - **Infantry footsteps:** Riflemen, Bazookas, Snipers and Engineers run with a step on every tile, by what the ground is. Plains give a soft grass step, forest a crunch of leaves, mountains gravel, and roads, towns and bases a crisp boot tap. Bridges give a hollow wooden thunk and rivers a splash. Under fog you only hear steps where you can see.
@@ -64,7 +64,7 @@ The dev server checks for file changes on a short timer (`vite.config.ts`), beca
 - **Camera:** scroll the mouse wheel to zoom toward the cursor, or use the **− / + / Fit** buttons at the top right of the map. Drag the map (or use the arrow keys or WASD) to scroll. A short click still selects. Each turn starts centered on the current player's army, and the camera follows CPU moves. Small maps show in full; big maps (up to 40×40) open zoomed in to a readable size.
 - Right-click or Esc cancels. **Undo** (or Ctrl+Z) takes back your confirmed moves and builds, back to the start of your turn.
 - Each player can have at most 50 units on the map.
-- **Rivers:** only infantry (Riflemen, Bazookas, Snipers) can wade across, and it costs them 2 movement points per river tile. A Rifleman (move 3) gets in and one tile past it; a Bazooka or Sniper (move 2) needs two turns to get across. Ground vehicles can't enter rivers at all: they need a road crossing or a transport. Transports can't drop vehicles into a river, but they can drop infantry there. Rivers give no cover (0 stars). Aircraft fly over them with no penalty, and ships can't sail up them. Change the costs in `src/data/terrain.json`.
+- **Rivers:** only infantry (Riflemen, Bazookas, Snipers, Engineers, Mortar Teams) can wade across, and it costs them 2 movement points per river tile. A Rifleman (move 3) gets in and one tile past it; a Bazooka or Sniper (move 2) needs two turns to get across. Ground vehicles can't enter rivers at all: they need a road crossing or a transport. Transports can't drop vehicles into a river, but they can drop infantry there. Rivers give no cover (0 stars). Aircraft fly over them with no penalty, and ships can't sail up them. Change the costs in `src/data/terrain.json`.
 
 ## Air and naval units
 
@@ -121,6 +121,7 @@ A support unit that deters and weakens infantry so other units can finish them. 
   |---|---|---|
   | Rifleman | 20% | 10% |
   | Bazooka | 10% | 5% |
+  | Mortar Team | 20% | 10% |
   | Enemy Sniper | always destroyed | 90% |
 
 - **Steady aim:** it's the only unit that deals full damage no matter how hurt it is.
@@ -136,6 +137,31 @@ A support unit that deters and weakens infantry so other units can finish them. 
 - **Commanders:** snipers count as infantry, so Juno's discount (3,400) and Vex's −10% infantry attack apply.
 - **CPU players:** Medium and Hard CPUs add one sniper as support once they already have an army and the enemy fields infantry.
 - **Tuning:** the numbers live in `src/data/units.json` (`precision` for damage dealt, `incomingDamage` for damage taken, `coverTerrain`) and `src/data/damage.json`.
+
+## Mortar Team
+
+A support infantry unit that shells nearby infantry from where it's dug in. It's built to soften a defence, not to win fights on its own.
+
+- **Stats:** costs 4,000, sees 2 tiles, and attacks anything 1–2 squares away. It takes damage like a Rifleman.
+- **Sets up to fire:** each turn it can move or attack, not both, even at a target right next to it. It still fires back when attacked from an adjacent tile; from 2 tiles away it can't be hit back by it.
+- **Movement:** 3 over open ground, forest included. A mountain takes its whole turn: it can only climb one from a tile right next to it, before moving. Climbing down is normal. Rivers cost 2, like other infantry.
+- **Captures cities only,** not HQs, factories, ports or airfields.
+- **Damage:** about half of Artillery's against infantry, very little against armour, and nothing against aircraft or ships (terrain stars still apply):
+
+  | Target | Damage |
+  |---|---|
+  | Rifleman, Engineer | 45% |
+  | Bazooka, another Mortar Team | 40% |
+  | Rocket or Missile Launcher | 30% |
+  | Scout Car, Artillery | 25% |
+  | APC, Flak Gun | 20% |
+  | Light Tank | 12% |
+  | Heavy Tank | 5% |
+
+- **Look and sound:** a crouched soldier with a tube on a bipod and base plate. It lobs two rounds high, even at a target next door, with a hollow "thoonk" for each and a rounded boom where they land.
+- **Rides** in APCs, Airlifts and Landers like other infantry. Commanders treat it as an indirect unit (like Artillery), so their indirect bonuses apply to it.
+- **CPU players:** Medium and Hard CPUs field up to two once they have an army and the enemy has infantry; they also use them to take cities.
+- **Tuning:** `setUp`, `captures` and `terrainCost` in `src/data/units.json` (any unit can use them), and the `mortar` row and column in `src/data/damage.json`.
 
 ## Engineer and bridges
 
@@ -370,7 +396,7 @@ Click **Map editor** on the main menu.
 
 Click **Unit editor** on the main menu to make your own **unit set**: a named copy of every unit's stats and the damage table. Then pick it under **Units** on the setup screen. **Standard** is the built-in set and can't be changed.
 
-- **Editing:** pick a unit on the left. Its numbers are grouped into Basics (name, badge, cost, movement, vision, move type, capturing), Combat (health, range, cover, camouflage), Supplies (fuel, ammo, resupplying, passengers) and Special (bridge kits, bridge damage, and the Sniper's fixed damage numbers). Each field explains itself.
+- **Editing:** pick a unit on the left. Its numbers are grouped into Basics (name, badge, cost, movement, vision, move type, capturing), Combat (health, range, sets up to fire, cover, camouflage), Supplies (fuel, ammo, resupplying, passengers) and Special (bridge kits, bridge damage, and the Sniper's fixed damage numbers). Each field explains itself.
   - Fields that only make sense for some units (fuel for vehicles, aircraft and ships; passengers for transports) only appear there.
   - Optional fields can be left blank to switch them off; for example, blank ammo means unlimited.
 - **Damage:** below the fields, set what the unit deals to every other unit (its row) and takes from every other unit (its column). 0 means it can't attack that unit. For Snipers, these only decide who can be hit; their real damage is in Special.

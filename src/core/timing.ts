@@ -15,7 +15,7 @@ export const COUNTER_PAUSE_MS = 120;
 
 /** How a unit's attack looks. Each style fires `shots` projectiles, `gap` ms apart, each flying `flight` ms. */
 export type WeaponStyle =
-  | 'rifle' | 'smg' | 'sniper' | 'bazooka' | 'cannon' | 'guns'
+  | 'rifle' | 'smg' | 'sniper' | 'bazooka' | 'mortar' | 'cannon' | 'guns'
   | 'shell' | 'rockets' | 'missiles' | 'airMissiles' | 'bombs';
 
 export interface WeaponTiming {
@@ -31,6 +31,8 @@ export const WEAPONS: Record<WeaponStyle, WeaponTiming> = {
   smg: { shots: 4, gap: 55, flight: 100, arc: 0 },
   sniper: { shots: 1, gap: 0, flight: 150, arc: 0 },
   bazooka: { shots: 1, gap: 0, flight: 240, arc: 0 },
+  // Two rounds lobbed high, even at a target next door.
+  mortar: { shots: 2, gap: 150, flight: 420, arc: 1.5 },
   cannon: { shots: 1, gap: 0, flight: 200, arc: 0 },
   guns: { shots: 4, gap: 50, flight: 140, arc: 0 },
   shell: { shots: 1, gap: 0, flight: 500, arc: 1 },
@@ -42,7 +44,7 @@ export const WEAPONS: Record<WeaponStyle, WeaponTiming> = {
 
 /** Which weapon each unit fires (units that can't attack aren't listed). */
 export const WEAPON_OF: Partial<Record<UnitType, WeaponStyle>> = {
-  rifle: 'rifle', engineer: 'smg', sniper: 'sniper', bazooka: 'bazooka',
+  rifle: 'rifle', engineer: 'smg', sniper: 'sniper', bazooka: 'bazooka', mortar: 'mortar',
   scout: 'guns', flak: 'guns', fighter: 'guns', cruiser: 'guns',
   ltank: 'cannon', htank: 'cannon',
   artillery: 'shell', battleship: 'shell', rocket: 'rockets', missile: 'missiles',

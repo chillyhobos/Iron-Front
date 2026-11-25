@@ -8,7 +8,7 @@
 //   2. When no units are left to move, spend money at free factories.
 
 import {
-  BLOCKED, CAPTURE_POINTS, carries, DAMAGE, familyOf, MAX_UNITS, maxHpOf, supplyClassOf, TERRAIN, UNIT_ORDER, UNITS,
+  BLOCKED, CAPTURE_POINTS, capturesTerrain, carries, DAMAGE, familyOf, MAX_UNITS, maxHpOf, supplyClassOf, TERRAIN, UNIT_ORDER, UNITS,
   type MoveType, type SupplyClass, type UnitType,
 } from './data';
 import {
@@ -161,8 +161,8 @@ function intentOf(s: GameState, u: Unit, ctx: Context): Intent {
   const goal: Goal = job ? job
     : ground && needsSupply && !wounded && !engineer && !def.resupplies ? 'supply'
     : wounded || needsSupply || unarmed || engineer ? 'home'
-    : def.canCapture && (ctx.pushing || ctx.ahead) && Number.isFinite(ctx.field(def.moveType, 'hq', u.type)[u.y * s.width + u.x]) ? 'hq'
-    : def.canCapture && ctx.hasCaptureGoals ? 'capture'
+    : capturesTerrain(u.type, 'hq') && (ctx.pushing || ctx.ahead) && Number.isFinite(ctx.field(def.moveType, 'hq', u.type)[u.y * s.width + u.x]) ? 'hq'
+    : def.canCapture && ctx.hasCaptureGoalsFor(u.type) ? 'capture'
     : (p.siege && ctx.ahead) || ctx.pushing ? 'siege'
     : ctx.hasTargetsFor(u.type) ? 'enemy'
     : 'home';
@@ -462,6 +462,11 @@ function chooseBuildAt(s: GameState, pid: number, ctx: Context, at: number, free
   const myFighters = mine.filter(u => !UNITS[u.type].canCapture && u.type !== 'sniper').length;
   const wantSniper = ctx.profile.counterPick && enemyInfantry >= 4 && myFighters >= 6 && mySnipers < 1
     && affordable.includes('sniper' as UnitType);
+  // Mortar Teams are support too: a couple of them shell infantry holding cities and forests.
+  // (Per fund, Artillery always out-damages them, so the counter-pick alone would never buy one.)
+  const myMortars = mine.filter(u => u.type === 'mortar').length;
+  const wantMortar = ctx.profile.counterPick && enemyInfantry >= 3 && myFighters >= 4 && myMortars < 2
+    && affordable.includes('mortar' as UnitType);
 
   let type: UnitType;
   if (builds !== 'ground') {
@@ -472,6 +477,8 @@ function chooseBuildAt(s: GameState, pid: number, ctx: Context, at: number, free
     type = enemyVehicles > 0 && capturers >= 2 && affordable.includes('bazooka') ? 'bazooka' : 'rifle';
   } else if (wantSniper) {
     type = 'sniper' as UnitType;
+  } else if (wantMortar) {
+    type = 'mortar' as UnitType;
   } else if (!ctx.profile.counterPick) {
     type = affordable[Math.floor(ctx.rng() * affordable.length)];
   } else if (!enemies.length) {
@@ -549,6 +556,12 @@ class Context {
   private fields = new Map<string, number[]>();
   private enemyThreats: Array<{ type: UnitType; hp: number; danger: Set<string> }>;
   readonly hasCaptureGoals: boolean;
+  private readonly captureGoalsFor: (type: UnitType) => boolean;
+
+  /** Buildings left that this unit type can capture (a Mortar Team only takes cities). */
+  hasCaptureGoalsFor(type: UnitType): boolean {
+    return this.captureGoalsFor(type);
+  }
   /** True when pressing the advantage: our team's army is worth 1.5x the strongest enemy team's. */
   readonly ahead: boolean;
   /** True when it's time to attack whatever the odds: near the unit cap, or a long game. */
@@ -563,6 +576,7 @@ class Context {
     this.enemies = s.units.filter(u => !areAllies(s, u.owner, pid) && canSee(s, vision, team, u));
     this.enemyThreats = this.enemies.map(u => ({ type: u.type, hp: u.hp, danger: threatTiles(s, u).danger }));
     this.hasCaptureGoals = this.goalTiles('capture').length > 0;
+    this.captureGoalsFor = (type: UnitType) => !UNITS[type].captures ? this.hasCaptureGoals : this.goalTiles('capture', type).length > 0;
 
     // Compare whole teams, so a team game sees its combined strength (1v1 and FFA: one player each).
     const known = [...s.units.filter(u => areAllies(s, u.owner, pid)), ...this.enemies];
@@ -1008,6 +1022,8 @@ class Context {
     }
     s.tiles.forEach((t, i) => {
       if (!TERRAIN[t.terrain].property) return;
+      // (Capturing: only buildings this unit type can take, when it's picky.)
+      if (goal === 'capture' && type && !capturesTerrain(type, t.terrain)) return;
       if (goal === 'home' ? t.owner === pid : t.owner === null || !areAllies(s, t.owner, pid)) out.push(i);
     });
     return out;
@@ -1032,7 +1048,8 @@ class Context {
   private goalField(moveType: MoveType, goal: Goal, type: UnitType | undefined, bridged: boolean): number[] {
     // Goals that depend on the unit: who it can hurt (enemy) or where it resupplies (home).
     const narrow = goal === 'enemy' || goal === 'pickup' || goal === 'riders' ? type ?? ''
-      : (goal === 'home' || goal === 'supply') && type ? supplyClassOf(type) : '';
+      : (goal === 'home' || goal === 'supply') && type ? supplyClassOf(type)
+      : goal === 'capture' && type && UNITS[type].captures ? UNITS[type].captures!.join('+') : '';
     const key = `${bridged ? 'bridged:' : ''}${moveType}:${goal}:${narrow}`;
     const cached = this.fields.get(key);
     if (cached) return cached;

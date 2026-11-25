@@ -21,7 +21,7 @@ const MUSIC_LEVEL = 0.7;
 
 /** Which sound each unit's shots make, and at what pitch (lower is bigger: a Heavy Tank booms deeper). */
 const FIRE_SOUNDS: Partial<Record<string, [SoundName, number]>> = {
-  rifle: ['rifle-shot', 1], engineer: ['smg-shot', 1], sniper: ['sniper-shot', 1], bazooka: ['bazooka-shot', 1],
+  rifle: ['rifle-shot', 1], engineer: ['smg-shot', 1], sniper: ['sniper-shot', 1], bazooka: ['bazooka-shot', 1], mortar: ['mortar-shot', 1],
   scout: ['gun-burst', 1.15], flak: ['gun-burst', 0.95], fighter: ['gun-burst', 1.08], cruiser: ['gun-burst', 0.88],
   ltank: ['cannon-shot', 1.12], htank: ['cannon-shot', 0.85],
   artillery: ['shell-shot', 1], battleship: ['shell-shot', 0.82],
@@ -31,7 +31,7 @@ const FIRE_SOUNDS: Partial<Record<string, [SoundName, number]>> = {
 /** Which sound a shot makes as it lands, by weapon: bullets puff, anything explosive booms. */
 const IMPACT_SOUNDS: Record<WeaponStyle, SoundName> = {
   rifle: 'impact-light', smg: 'impact-light', sniper: 'impact-light', guns: 'impact-light',
-  bazooka: 'impact-heavy', cannon: 'impact-heavy', shell: 'impact-heavy', rockets: 'impact-heavy',
+  bazooka: 'impact-heavy', mortar: 'impact-heavy', cannon: 'impact-heavy', shell: 'impact-heavy', rockets: 'impact-heavy',
   missiles: 'impact-heavy', airMissiles: 'impact-heavy', bombs: 'impact-heavy',
 };
 

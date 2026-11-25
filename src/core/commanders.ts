@@ -2,7 +2,7 @@
 // use to apply a player's passive and (when active) power bonuses.
 
 import commandersJson from '../data/commanders.json';
-import { familyOf, UNITS, type UnitType } from './data';
+import { familyOf, firesOnlyStill, UNITS, type UnitType } from './data';
 import type { GameState } from './state';
 
 /** Group bonuses: { all: 10, tank: 20, scout: 1, ... } — see the _help text in commanders.json. */
@@ -47,9 +47,9 @@ export const commanderOf = (s: GameState, playerId: number): CommanderDef | unde
 
 /** Every group a unit type belongs to. */
 export function groupsOf(type: UnitType): string[] {
-  const def = UNITS[type];
-  // Family: infantry, vehicle (ground vehicles only), air or naval.
-  const groups = ['all', type, familyOf(type), def.minRange > 1 ? 'indirect' : 'direct'];
+  // Family: infantry, vehicle (ground vehicles only), air or naval. Units that must stand
+  // still to fire (Artillery, Rockets, Mortar Teams) count as indirect.
+  const groups = ['all', type, familyOf(type), firesOnlyStill(type) ? 'indirect' : 'direct'];
   if (type === 'ltank' || type === 'htank') groups.push('tank');
   return groups;
 }

@@ -102,6 +102,7 @@ export const FIELDS: FieldSpec[] = [
   { path: 'maxHp', label: 'Max health', kind: 'int', section: 'Combat', min: 10, max: 100, step: 10, optional: true, help: 'Full health (blank = 100). Damage dealt also scales with health, so lower health also means weaker hits.' },
   { path: 'minRange', label: 'Min range', kind: 'int', section: 'Combat', min: 1, max: 10, help: '1 = can attack next to it. 2+ = indirect fire (cannot move and shoot in one turn).' },
   { path: 'maxRange', label: 'Max range', kind: 'int', section: 'Combat', min: 1, max: 10, help: 'Farthest tile it can hit.' },
+  { path: 'setUp', label: 'Sets up to fire', kind: 'bool', section: 'Combat', help: 'Can move or attack in a turn, not both, even at range 1 (Mortar Team). Min range 2+ always works this way.' },
   { path: 'coverFactor', label: 'Terrain cover', kind: 'number', section: 'Combat', min: 0, max: 2, step: 0.1, optional: true, help: 'Share of terrain defense stars it benefits from (blank = 1 = full).' },
   { path: 'coverDamage', label: 'Damage taken in cover', kind: 'number', section: 'Combat', min: 0.05, max: 1, step: 0.05, optional: true, help: 'If set, in cover (forest, mountain, buildings) it takes this share of each hit instead of using stars (Engineer: 0.3).' },
   { path: 'fullDamageAtAnyHp', label: 'Full damage when hurt', kind: 'bool', section: 'Combat', help: 'Hits just as hard at low health.' },

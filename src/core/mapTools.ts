@@ -1,7 +1,7 @@
 // Map-editing logic (pure, no graphics): an editable grid, brushes with
 // optional symmetry, flood fill, resize, validation and turn-order setup.
 
-import { BLOCKED, TERRAIN, UNITS, type TerrainId, type UnitType } from './data';
+import { BLOCKED, moveCost, TERRAIN, UNITS, type TerrainId, type UnitType } from './data';
 import { MODES, TEAMS_3V3, TURN_ORDER_3V3, mapMode, type MapDef, type MapMode, type MapUnit } from './maps';
 
 export const MIN_SIZE = 8;
@@ -128,7 +128,7 @@ export function unitIndexAt(g: EditGrid, x: number, y: number) {
 }
 
 function canStand(type: UnitType, terrain: TerrainId) {
-  return TERRAIN[terrain].cost[UNITS[type].moveType] < BLOCKED;
+  return moveCost(type, terrain) < BLOCKED;
 }
 
 /** Paint one brush stroke at (x, y) and its mirror images. Returns true if anything changed. */

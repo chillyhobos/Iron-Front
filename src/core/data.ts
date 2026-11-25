@@ -44,7 +44,16 @@ export interface UnitDef {
   moveType: MoveType;
   minRange: number;
   maxRange: number;
+  /**
+   * Sets up to fire (Mortar Team): can move or attack in a turn, not both, even at range 1.
+   * Units whose range starts at 2 or more always work this way.
+   */
+  setUp?: boolean;
   canCapture: boolean;
+  /** Buildings it can capture, when not all of them (Mortar Team: cities only). */
+  captures?: TerrainId[];
+  /** Movement costs that differ from its move type's (Mortar Team: a mountain takes its whole move). */
+  terrainCost?: Partial<Record<TerrainId, number>>;
   /** Tiles that count as cover for `precision` and `incomingDamage` (Sniper) and `coverDamage` (Engineer). */
   coverTerrain?: TerrainId[];
   /**
@@ -114,6 +123,17 @@ export function familyOf(type: UnitType): UnitFamily {
   if (m === 'ship') return 'naval';
   return m === 'foot' || m === 'boot' ? 'infantry' : 'vehicle';
 }
+
+/** Must this unit type stand still to fire? (Indirect fire, or a unit that sets up.) */
+export const firesOnlyStill = (type: UnitType) => UNITS[type].minRange > 1 || !!UNITS[type].setUp;
+
+/** Can this unit type capture this kind of building? */
+export const capturesTerrain = (type: UnitType, terrain: TerrainId) =>
+  UNITS[type].canCapture && TERRAIN[terrain].property && (!UNITS[type].captures || UNITS[type].captures!.includes(terrain));
+
+/** Move points this unit type spends to enter this terrain (BLOCKED = can't). */
+export const moveCost = (type: UnitType, terrain: TerrainId) =>
+  UNITS[type].terrainCost?.[terrain] ?? TERRAIN[terrain].cost[UNITS[type].moveType];
 
 /** Can this transport type carry a unit of this type (by its family, or by name)? */
 export function carries(transportType: UnitType, riderType: UnitType): boolean {
