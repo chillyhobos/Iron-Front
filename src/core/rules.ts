@@ -141,30 +141,46 @@ export function canSee(s: GameState, vision: Vision, team: number, u: Unit): boo
 export interface ReachInfo { cost: number; prev: string | null }
 export type Reach = Map<string, ReachInfo>;
 
+/** Road bonus: a ground unit's first road (or bridge) tile each move is free, so a move that uses a road goes 1 tile farther. */
+const ROAD_TILES = new Set(['road', 'bridge']);
+
+/**
+ * Behind each Reach: the search itself, over (tile, road bonus used yet?) states, so
+ * pathTo() retraces the exact route the cost was worked out for. `best` says which
+ * state each tile's entry came from.
+ */
+const routes = new WeakMap<Reach, { states: Map<string, ReachInfo>; best: Map<string, string> }>();
+
 /**
  * Every tile the unit can path through this turn (Dijkstra on move points).
  * Under fog, enemies the unit's team can't see don't block planning — moving
  * into one springs an ambush (see applyAction).
  */
 export function reachable(s: GameState, u: Unit): Reach {
-  const def = UNITS[u.type];
   // Units with fuel can't spend more move points than they have fuel left.
   const move = u.fuel !== undefined ? Math.min(unitMove(s, u), u.fuel) : unitMove(s, u);
   const team = teamOf(s, u.owner);
   const vision = visibleTiles(s, team);
-  const reach: Reach = new Map([[posKey(u.x, u.y), { cost: 0, prev: null }]]);
-  const frontier: Array<{ x: number; y: number; cost: number }> = [{ x: u.x, y: u.y, cost: 0 }];
+  // Ground units get the road bonus (and only if they can move at all: no free tile on an empty tank).
+  const fam = familyOf(u.type);
+  const roadBonus = (fam === 'infantry' || fam === 'vehicle') && move > 0;
+  // A state is a tile plus whether the free road tile has been used ("+" suffix).
+  const start = posKey(u.x, u.y);
+  const states = new Map<string, ReachInfo>([[start, { cost: 0, prev: null }]]);
+  const frontier: Array<{ x: number; y: number; cost: number; used: boolean }> = [{ x: u.x, y: u.y, cost: 0, used: false }];
 
   while (frontier.length) {
     frontier.sort((a, b) => a.cost - b.cost);
     const cur = frontier.shift()!;
-    if (cur.cost > (reach.get(posKey(cur.x, cur.y))?.cost ?? Infinity)) continue;
+    const curKey = posKey(cur.x, cur.y) + (cur.used ? '+' : '');
+    if (cur.cost > (states.get(curKey)?.cost ?? Infinity)) continue;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = cur.x + dx;
       const ny = cur.y + dy;
       if (!inBounds(s, nx, ny)) continue;
       const blocker = unitAt(s, nx, ny);
-      let step = moveCost(u.type, tileAt(s, nx, ny).terrain);
+      const terrain = tileAt(s, nx, ny).terrain;
+      let step = moveCost(u.type, terrain);
       // A friendly transport on water (e.g. a Lander by the shore) can be boarded
       // from an adjacent tile: one step onto it, and the move ends there.
       let boardOnly = false;
@@ -175,15 +191,30 @@ export function reachable(s: GameState, u: Unit): Reach {
       }
       // Visible enemies block; allies (and enemies hidden in fog) can be passed.
       if (blocker && !areAllies(s, blocker.owner, u.owner) && canSee(s, vision, team, blocker)) continue;
-      const cost = cur.cost + step;
+      // The first road tile is free; after that roads cost as usual.
+      const free = roadBonus && !cur.used && !boardOnly && ROAD_TILES.has(terrain);
+      const used = cur.used || free;
+      const cost = cur.cost + (free ? 0 : step);
       if (cost > move) continue;
-      const k = posKey(nx, ny);
-      const known = reach.get(k);
+      const k = posKey(nx, ny) + (used ? '+' : '');
+      const known = states.get(k);
       if (known && known.cost <= cost) continue;
-      reach.set(k, { cost, prev: posKey(cur.x, cur.y) });
-      if (!boardOnly) frontier.push({ x: nx, y: ny, cost });
+      states.set(k, { cost, prev: curKey });
+      if (!boardOnly) frontier.push({ x: nx, y: ny, cost, used });
     }
   }
+
+  // One entry per tile: the cheaper way there (with or without the free road tile).
+  const reach: Reach = new Map();
+  const best = new Map<string, string>();
+  for (const [k, info] of states) {
+    const tile = k.endsWith('+') ? k.slice(0, -1) : k;
+    const known = reach.get(tile);
+    if (known && known.cost <= info.cost) continue;
+    reach.set(tile, { cost: info.cost, prev: info.prev && (info.prev.endsWith('+') ? info.prev.slice(0, -1) : info.prev) });
+    best.set(tile, k);
+  }
+  routes.set(reach, { states, best });
   return reach;
 }
 
@@ -233,11 +264,13 @@ export function dropTiles(s: GameState, transport: Unit, x: number, y: number, c
 
 export function pathTo(reach: Reach, x: number, y: number): Pos[] {
   const path: Pos[] = [];
-  let k: string | null = posKey(x, y);
+  // Retrace the search's own route when we have it (see reachable), else follow the tiles.
+  const route = routes.get(reach);
+  let k: string | null = route?.best.get(posKey(x, y)) ?? posKey(x, y);
   while (k) {
-    const [px, py] = k.split(',').map(Number);
+    const [px, py] = k.replace('+', '').split(',').map(Number);
     path.unshift({ x: px, y: py });
-    k = reach.get(k)?.prev ?? null;
+    k = (route ? route.states.get(k)?.prev : reach.get(k)?.prev) ?? null;
   }
   return path;
 }
